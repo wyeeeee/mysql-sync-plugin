@@ -91,6 +91,7 @@ function App() {
       if (window.Dingdocs?.base?.host?.saveConfigAndGoNext) {
         await window.Dingdocs.base.host.saveConfigAndGoNext(config);
         message.success('配置保存成功,正在跳转...');
+        console.log('保存配置:', config);
       } else {
         // 开发环境模拟
         console.log('保存配置:', config);
