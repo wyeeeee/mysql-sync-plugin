@@ -1,0 +1,30 @@
+# 环境变量文件
+.env
+.env.local
+
+# 后端
+backend/mysql-sync-server
+backend/mysql-sync-server.exe
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.claude
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+
+# 临时文件
+*.tmp
+*.temp

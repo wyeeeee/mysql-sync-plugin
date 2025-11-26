@@ -1,0 +1,19 @@
+{
+  "dataSource": {
+    "dataSourceConfig": {
+      "uri": "https://your-domain.com/mysql-config?corpId=$CORPID$",
+      "initHeight": 500,
+      "initWidth": 600
+    },
+    "uris": [
+      {
+        "method": "sheetMeta",
+        "uri": "/api/sheet_meta"
+      },
+      {
+        "method": "records",
+        "uri": "/api/records"
+      }
+    ]
+  }
+}
