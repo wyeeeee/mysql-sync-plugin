@@ -49,9 +49,20 @@ func main() {
 	api.POST("/sheet_meta", h.SheetMeta)
 	api.POST("/records", h.Records)
 
+	// 静态文件服务 - 提供前端页面
+	r.Static("/assets", "./static/assets")
+	r.StaticFile("/", "./static/index.html")
+	r.StaticFile("/favicon.ico", "./static/favicon.ico")
+
+	// 处理前端路由,所有未匹配的路由都返回 index.html
+	r.NoRoute(func(c *gin.Context) {
+		c.File("./static/index.html")
+	})
+
 	// 启动服务
 	addr := ":" + cfg.ServerPort
 	log.Printf("MySQL同步插件服务启动在端口 %s", cfg.ServerPort)
+	log.Printf("前端页面访问地址: http://localhost:%s", cfg.ServerPort)
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("服务启动失败: %v", err)
 	}

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// 获取后端服务地址(从环境变量或默认值)
-const API_BASE_URL = 'https://xipiapi.moonmark.chat';
+// 使用相对路径,前后端部署在同一服务器
+const API_BASE_URL = '';
 
 // 创建axios实例
 const api = axios.create({
