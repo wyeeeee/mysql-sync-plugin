@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// 使用相对路径,前后端部署在同一服务器
-const API_BASE_URL = '';
+// 使用 /data 基础路径,适配 nginx 反向代理
+const API_BASE_URL = '/data';
 
 // 创建axios实例
 const api = axios.create({
