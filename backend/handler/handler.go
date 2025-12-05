@@ -74,6 +74,32 @@ func (h *Handler) Records(c *gin.Context) {
 	})
 }
 
+// GetDatabases 获取数据库列表(前端辅助接口)
+func (h *Handler) GetDatabases(c *gin.Context) {
+	var config models.MySQLConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	databases, err := h.mysqlService.GetDatabases(&config)
+	if err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeThirdPartyError,
+			Msg:  "获取数据库列表失败: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{
+		Code: models.CodeSuccess,
+		Data: databases,
+	})
+}
+
 // GetTables 获取数据表列表(前端辅助接口)
 func (h *Handler) GetTables(c *gin.Context) {
 	var config models.MySQLConfig

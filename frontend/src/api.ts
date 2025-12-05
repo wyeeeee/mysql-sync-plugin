@@ -12,6 +12,12 @@ const api = axios.create({
   },
 });
 
+// 字段映射配置
+export interface FieldMapping {
+  mysqlField: string;  // MySQL原始字段名
+  aliasField: string;  // AI表格显示的别名
+}
+
 // MySQL配置接口
 export interface MySQLConfig {
   host: string;
@@ -20,6 +26,7 @@ export interface MySQLConfig {
   username: string;
   password: string;
   table?: string;
+  fieldMappings?: FieldMapping[];  // 字段映射配置
 }
 
 // 测试MySQL连接
@@ -34,14 +41,12 @@ export const testConnection = async (config: MySQLConfig): Promise<boolean> => {
 };
 
 // 获取数据库列表
-export const getDatabases = async (config: Omit<MySQLConfig, 'database'>): Promise<string[]> => {
-  try {
-    const response = await api.post('/api/databases', config);
-    return response.data.data || [];
-  } catch (error) {
-    console.error('获取数据库列表失败:', error);
-    return [];
+export const getDatabases = async (config: Omit<MySQLConfig, 'database' | 'table'>): Promise<string[]> => {
+  const response = await api.post('/api/databases', config);
+  if (response.data.code !== 0) {
+    throw new Error(response.data.msg || '获取数据库列表失败');
   }
+  return response.data.data || [];
 };
 
 // 获取数据表列表

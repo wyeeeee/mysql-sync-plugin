@@ -118,6 +118,9 @@ func (s *MySQLService) GetSheetMeta(req *models.SheetMetaRequest) (*models.Sheet
 		return nil, err
 	}
 
+	// 应用字段映射
+	fields = s.applyFieldMappings(fields, config.FieldMappings)
+
 	return &models.SheetMetaResponse{
 		SheetName: config.Table,
 		Fields:    fields,
@@ -171,6 +174,9 @@ func (s *MySQLService) GetRecords(req *models.RecordsRequest) (*models.RecordsRe
 	if err != nil {
 		return nil, err
 	}
+
+	// 应用字段映射到记录
+	records = s.applyRecordFieldMappings(records, config.FieldMappings)
 
 	// 计算下一页token
 	nextOffset := offset + maxResults
@@ -377,4 +383,61 @@ func (s *MySQLService) getNumberProperty(mysqlType string) map[string]interface{
 	}
 
 	return nil
+}
+
+// applyFieldMappings 应用字段映射到字段列表
+func (s *MySQLService) applyFieldMappings(fields []models.Field, mappings []models.FieldMapping) []models.Field {
+	if len(mappings) == 0 {
+		return fields
+	}
+
+	// 构建映射表
+	aliasMap := make(map[string]string)
+	for _, m := range mappings {
+		if m.AliasField != "" && m.AliasField != m.MysqlField {
+			aliasMap[m.MysqlField] = m.AliasField
+		}
+	}
+
+	// 应用映射：同时修改 Name 和 ID
+	for i := range fields {
+		if alias, ok := aliasMap[fields[i].Name]; ok {
+			fields[i].Name = alias
+			fields[i].ID = fmt.Sprintf("fid_%s", alias)
+		}
+	}
+
+	return fields
+}
+
+// applyRecordFieldMappings 应用字段映射到记录数据
+func (s *MySQLService) applyRecordFieldMappings(records []models.Record, mappings []models.FieldMapping) []models.Record {
+	if len(mappings) == 0 {
+		return records
+	}
+
+	// 构建映射表: fid_原字段名 -> fid_别名
+	aliasMap := make(map[string]string)
+	for _, m := range mappings {
+		if m.AliasField != "" && m.AliasField != m.MysqlField {
+			oldKey := fmt.Sprintf("fid_%s", m.MysqlField)
+			newKey := fmt.Sprintf("fid_%s", m.AliasField)
+			aliasMap[oldKey] = newKey
+		}
+	}
+
+	// 应用映射到每条记录
+	for i := range records {
+		newFields := make(map[string]interface{})
+		for key, value := range records[i].Fields {
+			if newKey, ok := aliasMap[key]; ok {
+				newFields[newKey] = value
+			} else {
+				newFields[key] = value
+			}
+		}
+		records[i].Fields = newFields
+	}
+
+	return records
 }

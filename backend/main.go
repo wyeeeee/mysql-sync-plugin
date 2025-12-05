@@ -47,6 +47,7 @@ func main() {
 	api := baseGroup.Group("/api")
 	{
 		// 前端配置页面使用的API(无需签名,用于配置阶段)
+		api.POST("/databases", h.GetDatabases)
 		api.POST("/tables", h.GetTables)
 		api.POST("/fields", h.GetFields)
 

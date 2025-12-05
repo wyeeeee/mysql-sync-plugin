@@ -24,14 +24,21 @@ type Context struct {
 	CorpID  string `json:"corpId"`
 }
 
+// FieldMapping 字段映射配置
+type FieldMapping struct {
+	MysqlField string `json:"mysqlField"` // MySQL原始字段名
+	AliasField string `json:"aliasField"` // AI表格显示的别名
+}
+
 // MySQLConfig MySQL连接配置(从params中解析)
 type MySQLConfig struct {
-	Host     string `json:"host"`
-	Port     int    `json:"port"`
-	Database string `json:"database"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Table    string `json:"table"`
+	Host          string         `json:"host"`
+	Port          int            `json:"port"`
+	Database      string         `json:"database"`
+	Username      string         `json:"username"`
+	Password      string         `json:"password"`
+	Table         string         `json:"table"`
+	FieldMappings []FieldMapping `json:"fieldMappings,omitempty"` // 字段映射配置
 }
 
 // Response 通用响应结构
