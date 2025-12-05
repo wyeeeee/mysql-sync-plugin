@@ -485,6 +485,9 @@ func (s *MySQLService) getSQLSchema(db *sql.DB, customSQL string) ([]models.Fiel
 		return nil, fmt.Errorf("获取列类型失败: %w", err)
 	}
 
+	// 获取当前数据库所有字段的备注映射
+	commentMap := s.getAllColumnComments(db)
+
 	var fields []models.Field
 	for i, col := range columns {
 		dbType := ""
@@ -493,10 +496,11 @@ func (s *MySQLService) getSQLSchema(db *sql.DB, customSQL string) ([]models.Fiel
 		}
 
 		field := models.Field{
-			ID:        fmt.Sprintf("fid_%s", col),
-			Name:      col,
-			Type:      s.mapMySQLTypeToAITable(dbType),
-			IsPrimary: i == 0,
+			ID:          fmt.Sprintf("fid_%s", col),
+			Name:        col,
+			Type:        s.mapMySQLTypeToAITable(dbType),
+			IsPrimary:   i == 0,
+			Description: commentMap[col],
 		}
 
 		if field.Type == "number" {
@@ -507,6 +511,36 @@ func (s *MySQLService) getSQLSchema(db *sql.DB, customSQL string) ([]models.Fiel
 	}
 
 	return fields, nil
+}
+
+// getAllColumnComments 获取当前数据库所有表的字段备注
+func (s *MySQLService) getAllColumnComments(db *sql.DB) map[string]string {
+	commentMap := make(map[string]string)
+
+	query := `
+		SELECT COLUMN_NAME, COLUMN_COMMENT
+		FROM INFORMATION_SCHEMA.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_COMMENT != ''
+	`
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return commentMap
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var columnName, columnComment string
+		if err := rows.Scan(&columnName, &columnComment); err != nil {
+			continue
+		}
+		// 如果同名字段有多个备注，保留第一个
+		if _, exists := commentMap[columnName]; !exists {
+			commentMap[columnName] = columnComment
+		}
+	}
+
+	return commentMap
 }
 
 // getSQLRecordCount 获取自定义SQL的记录总数

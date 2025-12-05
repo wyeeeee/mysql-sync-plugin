@@ -15,6 +15,43 @@ const { Step } = Steps;
 const { Option } = Select;
 const { TextArea } = Input;
 
+// localStorage 存储键名
+const STORAGE_KEY = 'mysql_sync_history';
+
+// 历史记录类型（不包含密码）
+interface ConnectionHistory {
+  host: string;
+  port: number;
+  username: string;
+}
+
+// 从 localStorage 加载历史记录
+const loadHistory = (): ConnectionHistory | null => {
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (data) {
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.error('加载历史记录失败:', e);
+  }
+  return null;
+};
+
+// 保存历史记录到 localStorage（不包含密码）
+const saveHistory = (config: { host: string; port: number; username: string }) => {
+  try {
+    const history: ConnectionHistory = {
+      host: config.host,
+      port: config.port,
+      username: config.username,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history));
+  } catch (e) {
+    console.error('保存历史记录失败:', e);
+  }
+};
+
 // 字段信息类型
 interface FieldInfo {
   id: string;
@@ -56,7 +93,23 @@ function App() {
         message.error('初始化失败,请刷新重试');
       },
     });
-  }, []);
+
+    // 加载历史记录并填充表单
+    const history = loadHistory();
+    if (history) {
+      form.setFieldsValue({
+        host: history.host,
+        port: history.port,
+        username: history.username,
+      });
+      setMysqlConfig(prev => ({
+        ...prev,
+        host: history.host,
+        port: history.port,
+        username: history.username,
+      }));
+    }
+  }, [form]);
 
   // 步骤1: 连接数据库服务器，获取数据库列表
   const handleConnectServer = async () => {
@@ -83,6 +136,9 @@ function App() {
       setMysqlConfig(config);
       setCurrentStep(1);
       message.success('连接成功');
+
+      // 保存连接信息到历史记录（不包含密码）
+      saveHistory(config);
     } catch (error: any) {
       if (error.errorFields) {
         message.error('请填写完整的连接信息');
