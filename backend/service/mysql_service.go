@@ -112,8 +112,17 @@ func (s *MySQLService) GetSheetMeta(req *models.SheetMetaRequest) (*models.Sheet
 	}
 	defer db.Close()
 
-	// 获取表结构
-	fields, err := s.getTableSchema(db, config.Database, config.Table)
+	var fields []models.Field
+	var sheetName string
+
+	// 根据取数模式获取字段
+	if config.QueryMode == "sql" && config.CustomSQL != "" {
+		fields, err = s.getSQLSchema(db, config.CustomSQL)
+		sheetName = "自定义查询"
+	} else {
+		fields, err = s.getTableSchema(db, config.Database, config.Table)
+		sheetName = config.Table
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +131,7 @@ func (s *MySQLService) GetSheetMeta(req *models.SheetMetaRequest) (*models.Sheet
 	fields = s.applyFieldMappings(fields, config.FieldMappings)
 
 	return &models.SheetMetaResponse{
-		SheetName: config.Table,
+		SheetName: sheetName,
 		Fields:    fields,
 	}, nil
 }
@@ -157,20 +166,32 @@ func (s *MySQLService) GetRecords(req *models.RecordsRequest) (*models.RecordsRe
 		maxResults = 300
 	}
 
-	// 获取总记录数
-	total, err := s.getRecordCount(db, config.Table)
-	if err != nil {
-		return nil, err
-	}
+	var total int
+	var fields []models.Field
+	var records []models.Record
 
-	// 获取表结构(用于字段映射)
-	fields, err := s.getTableSchema(db, config.Database, config.Table)
-	if err != nil {
-		return nil, err
+	// 根据取数模式获取数据
+	if config.QueryMode == "sql" && config.CustomSQL != "" {
+		total, err = s.getSQLRecordCount(db, config.CustomSQL)
+		if err != nil {
+			return nil, err
+		}
+		fields, err = s.getSQLSchema(db, config.CustomSQL)
+		if err != nil {
+			return nil, err
+		}
+		records, err = s.getSQLRecords(db, config.CustomSQL, fields, offset, maxResults)
+	} else {
+		total, err = s.getRecordCount(db, config.Table)
+		if err != nil {
+			return nil, err
+		}
+		fields, err = s.getTableSchema(db, config.Database, config.Table)
+		if err != nil {
+			return nil, err
+		}
+		records, err = s.getTableRecords(db, config.Table, fields, offset, maxResults)
 	}
-
-	// 获取记录数据
-	records, err := s.getTableRecords(db, config.Table, fields, offset, maxResults)
 	if err != nil {
 		return nil, err
 	}
@@ -440,4 +461,135 @@ func (s *MySQLService) applyRecordFieldMappings(records []models.Record, mapping
 	}
 
 	return records
+}
+
+// getSQLSchema 通过执行SQL获取结果集的字段结构
+func (s *MySQLService) getSQLSchema(db *sql.DB, customSQL string) ([]models.Field, error) {
+	// 添加 LIMIT 1 来只获取一行用于分析结构
+	query := fmt.Sprintf("SELECT * FROM (%s) AS t LIMIT 1", strings.TrimSuffix(strings.TrimSpace(customSQL), ";"))
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("执行SQL失败: %w", err)
+	}
+	defer rows.Close()
+
+	// 获取列信息
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("获取列信息失败: %w", err)
+	}
+
+	columnTypes, err := rows.ColumnTypes()
+	if err != nil {
+		return nil, fmt.Errorf("获取列类型失败: %w", err)
+	}
+
+	var fields []models.Field
+	for i, col := range columns {
+		dbType := ""
+		if i < len(columnTypes) {
+			dbType = columnTypes[i].DatabaseTypeName()
+		}
+
+		field := models.Field{
+			ID:        fmt.Sprintf("fid_%s", col),
+			Name:      col,
+			Type:      s.mapMySQLTypeToAITable(dbType),
+			IsPrimary: i == 0,
+		}
+
+		if field.Type == "number" {
+			field.Property = s.getNumberProperty(dbType)
+		}
+
+		fields = append(fields, field)
+	}
+
+	return fields, nil
+}
+
+// getSQLRecordCount 获取自定义SQL的记录总数
+func (s *MySQLService) getSQLRecordCount(db *sql.DB, customSQL string) (int, error) {
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM (%s) AS t", strings.TrimSuffix(strings.TrimSpace(customSQL), ";"))
+
+	var count int
+	err := db.QueryRow(countQuery).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("获取记录数失败: %w", err)
+	}
+
+	return count, nil
+}
+
+// getSQLRecords 获取自定义SQL的记录数据(分页)
+func (s *MySQLService) getSQLRecords(db *sql.DB, customSQL string, fields []models.Field, offset, limit int) ([]models.Record, error) {
+	query := fmt.Sprintf("SELECT * FROM (%s) AS t LIMIT %d OFFSET %d",
+		strings.TrimSuffix(strings.TrimSpace(customSQL), ";"),
+		limit,
+		offset,
+	)
+
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("执行SQL失败: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	var records []models.Record
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, err
+		}
+
+		record := models.Record{
+			Fields: make(map[string]interface{}),
+		}
+
+		for i, col := range columns {
+			fieldID := fmt.Sprintf("fid_%s", col)
+			value := values[i]
+
+			if value != nil {
+				switch v := value.(type) {
+				case []byte:
+					record.Fields[fieldID] = string(v)
+				default:
+					record.Fields[fieldID] = v
+				}
+			} else {
+				record.Fields[fieldID] = nil
+			}
+
+			if i == 0 && value != nil {
+				record.ID = fmt.Sprintf("%v", value)
+			}
+		}
+
+		records = append(records, record)
+	}
+
+	return records, rows.Err()
+}
+
+// PreviewSQL 预览SQL执行结果（获取字段列表）
+func (s *MySQLService) PreviewSQL(config *models.MySQLConfig) ([]models.Field, error) {
+	db, err := s.connectDB(config)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	return s.getSQLSchema(db, config.CustomSQL)
 }

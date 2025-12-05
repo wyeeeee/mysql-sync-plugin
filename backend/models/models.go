@@ -37,7 +37,9 @@ type MySQLConfig struct {
 	Database      string         `json:"database"`
 	Username      string         `json:"username"`
 	Password      string         `json:"password"`
-	Table         string         `json:"table"`
+	Table         string         `json:"table,omitempty"`
+	QueryMode     string         `json:"queryMode,omitempty"`     // 取数模式: "table" 或 "sql"
+	CustomSQL     string         `json:"customSQL,omitempty"`     // 自定义SQL语句
 	FieldMappings []FieldMapping `json:"fieldMappings,omitempty"` // 字段映射配置
 }
 

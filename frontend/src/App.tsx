@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Form, Input, Button, Select, message, Steps, Space, Table, Divider } from 'antd';
+import { Form, Input, Button, Select, message, Steps, Space, Table, Divider, Radio } from 'antd';
 import { initView } from 'dingtalk-docs-cool-app';
-import { MySQLConfig, FieldMapping, getDatabases, getTables, getTableFields } from './api';
+import { MySQLConfig, FieldMapping, getDatabases, getTables, getTableFields, previewSQL } from './api';
 import './App.css';
 
 // 钉钉全局对象类型定义
@@ -13,6 +13,7 @@ declare global {
 
 const { Step } = Steps;
 const { Option } = Select;
+const { TextArea } = Input;
 
 // 字段信息类型
 interface FieldInfo {
@@ -20,7 +21,11 @@ interface FieldInfo {
   name: string;
   type: string;
   isPrimary: boolean;
+  description?: string;  // 数据库字段备注
 }
+
+// 取数模式类型
+type QueryMode = 'table' | 'sql';
 
 function App() {
   const [currentStep, setCurrentStep] = useState(0);
@@ -35,6 +40,10 @@ function App() {
   const [tables, setTables] = useState<string[]>([]);
   const [fields, setFields] = useState<FieldInfo[]>([]);
   const [fieldMappings, setFieldMappings] = useState<FieldMapping[]>([]);
+
+  // 取数模式
+  const [queryMode, setQueryMode] = useState<QueryMode>('table');
+  const [customSQL, setCustomSQL] = useState('');
 
   useEffect(() => {
     // 初始化钉钉酷应用SDK
@@ -140,6 +149,41 @@ function App() {
     }
   };
 
+  // 预览SQL，获取字段列表
+  const handlePreviewSQL = async () => {
+    if (!customSQL.trim()) {
+      message.warning('请输入SQL语句');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      const config = {
+        ...mysqlConfig,
+        customSQL: customSQL.trim(),
+      } as MySQLConfig;
+
+      const fieldList = await previewSQL(config);
+      setFields(fieldList);
+
+      // 初始化字段映射
+      const mappings: FieldMapping[] = fieldList.map((f: FieldInfo) => ({
+        mysqlField: f.name,
+        aliasField: f.name,
+      }));
+      setFieldMappings(mappings);
+
+      message.success(`SQL执行成功，共${fieldList.length}个字段`);
+    } catch (error: any) {
+      message.error('SQL执行失败: ' + (error.message || '未知错误'));
+      setFields([]);
+      setFieldMappings([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 更新字段映射
   const handleFieldMappingChange = (mysqlField: string, aliasField: string) => {
     setFieldMappings(prev =>
@@ -149,28 +193,55 @@ function App() {
     );
   };
 
+  // 取数模式切换
+  const handleQueryModeChange = (mode: QueryMode) => {
+    setQueryMode(mode);
+    setFields([]);
+    setFieldMappings([]);
+    if (mode === 'table') {
+      setCustomSQL('');
+    }
+  };
+
   // 步骤2: 保存配置
   const handleSaveConfig = async () => {
     try {
-      const values = await form.validateFields(['database', 'table']);
       setLoading(true);
 
-      const config: MySQLConfig = {
-        ...mysqlConfig as Omit<MySQLConfig, 'table' | 'database'>,
-        database: values.database,
-        table: values.table,
-        fieldMappings: fieldMappings,
-      };
+      // 根据取数模式验证
+      if (queryMode === 'table') {
+        const values = await form.validateFields(['database', 'table']);
+        const config: MySQLConfig = {
+          ...mysqlConfig as Omit<MySQLConfig, 'table' | 'database'>,
+          database: values.database,
+          table: values.table,
+          queryMode: 'table',
+          fieldMappings: fieldMappings,
+        };
 
-      // 调用钉钉SDK保存配置并跳转到下一步
-      if (window.Dingdocs?.base?.host?.saveConfigAndGoNext) {
-        await window.Dingdocs.base.host.saveConfigAndGoNext(config);
-        message.success('配置保存成功,正在跳转...');
-        console.log('保存配置:', config);
+        await saveConfig(config);
       } else {
-        // 开发环境模拟
-        console.log('保存配置:', config);
-        message.info('开发环境: 配置已保存到控制台');
+        const values = await form.validateFields(['database']);
+        if (!customSQL.trim()) {
+          message.error('请输入SQL语句');
+          setLoading(false);
+          return;
+        }
+        if (fields.length === 0) {
+          message.error('请先预览SQL获取字段列表');
+          setLoading(false);
+          return;
+        }
+
+        const config: MySQLConfig = {
+          ...mysqlConfig as Omit<MySQLConfig, 'table' | 'database'>,
+          database: values.database,
+          queryMode: 'sql',
+          customSQL: customSQL.trim(),
+          fieldMappings: fieldMappings,
+        };
+
+        await saveConfig(config);
       }
     } catch (error: any) {
       if (error.errorFields) {
@@ -183,6 +254,18 @@ function App() {
     }
   };
 
+  // 保存配置到钉钉
+  const saveConfig = async (config: MySQLConfig) => {
+    if (window.Dingdocs?.base?.host?.saveConfigAndGoNext) {
+      await window.Dingdocs.base.host.saveConfigAndGoNext(config);
+      message.success('配置保存成功,正在跳转...');
+      console.log('保存配置:', config);
+    } else {
+      console.log('保存配置:', config);
+      message.info('开发环境: 配置已保存到控制台');
+    }
+  };
+
   // 返回上一步
   const handlePrevious = () => {
     setCurrentStep(0);
@@ -190,8 +273,38 @@ function App() {
     setTables([]);
     setFields([]);
     setFieldMappings([]);
+    setQueryMode('table');
+    setCustomSQL('');
     form.setFieldsValue({ database: undefined, table: undefined });
   };
+
+  // 获取字段的备注
+  const getFieldDescription = (mysqlField: string): string => {
+    const field = fields.find(f => f.name === mysqlField);
+    return field?.description || '';
+  };
+
+  // 应用单个字段的备注到别名
+  const applyDescriptionToAlias = (mysqlField: string) => {
+    const description = getFieldDescription(mysqlField);
+    if (description) {
+      handleFieldMappingChange(mysqlField, description);
+    }
+  };
+
+  // 应用所有有备注的字段
+  const applyAllDescriptions = () => {
+    setFieldMappings(prev =>
+      prev.map(m => {
+        const description = getFieldDescription(m.mysqlField);
+        return description ? { ...m, aliasField: description } : m;
+      })
+    );
+    message.success('已应用所有备注');
+  };
+
+  // 检查是否有任何字段有备注
+  const hasAnyDescription = fields.some(f => f.description);
 
   // 字段映射表格列定义
   const mappingColumns = [
@@ -199,13 +312,26 @@ function App() {
       title: 'MySQL字段名',
       dataIndex: 'mysqlField',
       key: 'mysqlField',
-      width: '40%',
+      width: '25%',
+    },
+    {
+      title: '数据库备注',
+      key: 'description',
+      width: '25%',
+      render: (_: any, record: FieldMapping) => {
+        const description = getFieldDescription(record.mysqlField);
+        return description ? (
+          <span style={{ color: '#666' }}>{description}</span>
+        ) : (
+          <span style={{ color: '#ccc' }}>无备注</span>
+        );
+      },
     },
     {
       title: 'AI表格显示名',
       dataIndex: 'aliasField',
       key: 'aliasField',
-      width: '60%',
+      width: '35%',
       render: (text: string, record: FieldMapping) => (
         <Input
           value={text}
@@ -213,6 +339,23 @@ function App() {
           placeholder="输入显示名称"
         />
       ),
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: '15%',
+      render: (_: any, record: FieldMapping) => {
+        const description = getFieldDescription(record.mysqlField);
+        return description ? (
+          <Button
+            type="link"
+            size="small"
+            onClick={() => applyDescriptionToAlias(record.mysqlField)}
+          >
+            应用备注
+          </Button>
+        ) : null;
+      },
     },
   ];
 
@@ -295,35 +438,78 @@ function App() {
               </Select>
             </Form.Item>
 
-            <Form.Item
-              label="选择数据表"
-              name="table"
-              rules={[{ required: true, message: '请选择数据表' }]}
-            >
-              <Select
-                placeholder="请先选择数据库"
-                showSearch
-                disabled={tables.length === 0}
-                onChange={handleTableChange}
-                filterOption={(input, option) =>
-                  (option?.children as string).toLowerCase().includes(input.toLowerCase())
-                }
+            {/* 取数模式选择 */}
+            <Form.Item label="取数模式">
+              <Radio.Group
+                value={queryMode}
+                onChange={e => handleQueryModeChange(e.target.value)}
               >
-                {tables.map(table => (
-                  <Option key={table} value={table}>
-                    {table}
-                  </Option>
-                ))}
-              </Select>
+                <Radio.Button value="table">选择数据表</Radio.Button>
+                <Radio.Button value="sql">自定义SQL</Radio.Button>
+              </Radio.Group>
             </Form.Item>
+
+            {/* 选择数据表模式 */}
+            {queryMode === 'table' && (
+              <Form.Item
+                label="选择数据表"
+                name="table"
+                rules={[{ required: queryMode === 'table', message: '请选择数据表' }]}
+              >
+                <Select
+                  placeholder="请先选择数据库"
+                  showSearch
+                  disabled={tables.length === 0}
+                  onChange={handleTableChange}
+                  filterOption={(input, option) =>
+                    String(option?.label || option?.children || '').toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {tables.map(table => (
+                    <Option key={table} value={table}>
+                      {table}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            )}
+
+            {/* 自定义SQL模式 */}
+            {queryMode === 'sql' && (
+              <Form.Item label="自定义SQL">
+                <TextArea
+                  value={customSQL}
+                  onChange={e => setCustomSQL(e.target.value)}
+                  placeholder="请输入SELECT查询语句，例如：SELECT id, name, age FROM users WHERE status = 1"
+                  rows={4}
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <Button
+                  type="default"
+                  onClick={handlePreviewSQL}
+                  loading={loading}
+                  style={{ marginTop: 8 }}
+                  disabled={!mysqlConfig.database}
+                >
+                  预览SQL（获取字段）
+                </Button>
+              </Form.Item>
+            )}
 
             {/* 字段映射配置 */}
             {fields.length > 0 && (
               <>
                 <Divider>字段映射配置</Divider>
-                <p style={{ color: '#666', marginBottom: 12 }}>
-                  配置字段在AI表格中的显示名称，留空或保持原名则使用MySQL字段名
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <span style={{ color: '#666' }}>
+                    配置字段在AI表格中的显示名称，留空或保持原名则使用MySQL字段名
+                  </span>
+                  {hasAnyDescription && (
+                    <Button type="primary" size="small" onClick={applyAllDescriptions}>
+                      全部应用备注
+                    </Button>
+                  )}
+                </div>
                 <Table
                   dataSource={fieldMappings}
                   columns={mappingColumns}

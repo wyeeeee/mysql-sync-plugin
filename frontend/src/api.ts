@@ -26,6 +26,8 @@ export interface MySQLConfig {
   username: string;
   password: string;
   table?: string;
+  queryMode?: 'table' | 'sql';     // 取数模式
+  customSQL?: string;              // 自定义SQL语句
   fieldMappings?: FieldMapping[];  // 字段映射配置
 }
 
@@ -69,4 +71,13 @@ export const getTableFields = async (config: MySQLConfig): Promise<any[]> => {
     console.error('获取表字段失败:', error);
     return [];
   }
+};
+
+// 预览SQL执行结果（获取字段列表）
+export const previewSQL = async (config: MySQLConfig): Promise<any[]> => {
+  const response = await api.post('/api/preview_sql', config);
+  if (response.data.code !== 0) {
+    throw new Error(response.data.msg || 'SQL执行失败');
+  }
+  return response.data.data || [];
 };

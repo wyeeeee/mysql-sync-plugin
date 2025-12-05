@@ -50,6 +50,7 @@ func main() {
 		api.POST("/databases", h.GetDatabases)
 		api.POST("/tables", h.GetTables)
 		api.POST("/fields", h.GetFields)
+		api.POST("/preview_sql", h.PreviewSQL)
 
 		// AI表格服务端调用的API(需要签名验证)
 		api.POST("/sheet_meta", h.SheetMeta)

@@ -152,10 +152,44 @@ func (h *Handler) GetFields(c *gin.Context) {
 	})
 }
 
+// PreviewSQL 预览SQL执行结果（获取字段列表）
+func (h *Handler) PreviewSQL(c *gin.Context) {
+	var config models.MySQLConfig
+	if err := c.ShouldBindJSON(&config); err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "请求参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if config.CustomSQL == "" {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "SQL语句不能为空",
+		})
+		return
+	}
+
+	fields, err := h.mysqlService.PreviewSQL(&config)
+	if err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeThirdPartyError,
+			Msg:  "SQL执行失败: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{
+		Code: models.CodeSuccess,
+		Data: fields,
+	})
+}
+
 // Health 健康检查
 func (h *Handler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"status": "ok",
+		"status":  "ok",
 		"service": "mysql-sync-plugin",
 	})
 }
