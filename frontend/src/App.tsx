@@ -46,7 +46,7 @@ function App() {
 
       const config: Omit<MySQLConfig, 'table'> = {
         host: values.host,
-        port: values.port,
+        port: Number(values.port),
         username: values.username,
         password: values.password,
         database: values.database,
