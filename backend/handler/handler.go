@@ -28,15 +28,6 @@ func NewHandler() *Handler {
 	}
 }
 
-// toJSON 将数据序列化为格式化的 JSON
-func toJSON(data interface{}) string {
-	jsonBytes, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("[序列化失败: %v]", err)
-	}
-	return string(jsonBytes)
-}
-
 // SheetMeta 获取表结构
 func (h *Handler) SheetMeta(c *gin.Context) {
 	start := time.Now()
@@ -80,9 +71,7 @@ func (h *Handler) SheetMeta(c *gin.Context) {
 		return
 	}
 
-	// 记录返回内容到日志
-	responseDetail := fmt.Sprintf("%s\n\n返回数据:\n%s", detail, toJSON(data))
-	h.log.LogWithRequest(logger.LevelInfo, "获取表结构", fmt.Sprintf("成功获取 %d 个字段", len(data.Fields)), responseDetail, ip, c.GetHeader("User-Agent"), duration)
+	h.log.LogWithRequest(logger.LevelInfo, "获取表结构", fmt.Sprintf("成功获取 %d 个字段", len(data.Fields)), detail, ip, c.GetHeader("User-Agent"), duration)
 
 	c.JSON(http.StatusOK, models.Response{
 		Code: models.CodeSuccess,
@@ -147,11 +136,9 @@ func (h *Handler) Records(c *gin.Context) {
 		return
 	}
 
-	// 记录返回内容到日志
-	responseDetail := fmt.Sprintf("%s\n\n返回数据:\n%s", detail, toJSON(data))
 	h.log.LogWithRequest(logger.LevelInfo, "获取记录",
 		fmt.Sprintf("成功获取 %d 条记录, 总数: %d, 还有更多: %v", len(data.Records), data.Total, data.HasMore),
-		responseDetail, ip, c.GetHeader("User-Agent"), duration)
+		detail, ip, c.GetHeader("User-Agent"), duration)
 
 	c.JSON(http.StatusOK, models.Response{
 		Code: models.CodeSuccess,
