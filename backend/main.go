@@ -84,6 +84,12 @@ func main() {
 
 	// 管理后台API路由组(需要登录)
 	adminAPI := baseGroup.Group("/admin/api")
+	adminAPI.Use(func(c *gin.Context) {
+		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
+		c.Header("Pragma", "no-cache")
+		c.Header("Expires", "0")
+		c.Next()
+	})
 	adminAPI.Use(auth.AdminAuthMiddleware())
 	{
 		adminAPI.POST("/logout", authH.Logout)
@@ -102,9 +108,15 @@ func main() {
 	})
 	baseGroup.StaticFile("/favicon.ico", "./static/favicon.ico")
 
-	// 管理后台静态文件服务
-	baseGroup.Static("/admin/assets", "./admin/assets")
+	// 管理后台静态文件服务（带缓存控制）
+	baseGroup.GET("/admin/assets/*filepath", func(c *gin.Context) {
+		filepath := c.Param("filepath")
+		c.Header("Cache-Control", "no-cache, must-revalidate")
+		c.File("./admin/assets" + filepath)
+	})
 	baseGroup.GET("/admin", func(c *gin.Context) {
+		c.Request.Header.Del("If-Modified-Since")
+		c.Request.Header.Del("If-None-Match")
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.Header("Expires", "0")
@@ -127,6 +139,8 @@ func main() {
 				c.Status(404)
 				return
 			}
+			c.Request.Header.Del("If-Modified-Since")
+			c.Request.Header.Del("If-None-Match")
 			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 			c.Header("Pragma", "no-cache")
 			c.Header("Expires", "0")

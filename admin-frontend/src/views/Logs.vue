@@ -83,10 +83,21 @@
     <a-modal
       v-model:open="detailVisible"
       title="日志详情"
-      width="600px"
+      :width="isFullscreen ? '100%' : '800px'"
+      :style="isFullscreen ? { top: 0, paddingBottom: 0, maxWidth: '100%' } : {}"
+      :bodyStyle="isFullscreen ? { height: 'calc(100vh - 110px)', overflow: 'auto' } : {}"
       :footer="null"
     >
-      <a-descriptions :column="1" bordered v-if="currentLog">
+      <template #title>
+        <div class="modal-title">
+          <span>日志详情</span>
+          <a-button type="text" size="small" @click="isFullscreen = !isFullscreen">
+            <FullscreenOutlined v-if="!isFullscreen" />
+            <FullscreenExitOutlined v-else />
+          </a-button>
+        </div>
+      </template>
+      <a-descriptions :column="1" bordered v-if="currentLog" size="small">
         <a-descriptions-item label="ID">{{ currentLog.id }}</a-descriptions-item>
         <a-descriptions-item label="级别">
           <a-tag :color="getLevelColor(currentLog.level)">{{ currentLog.level }}</a-tag>
@@ -95,7 +106,7 @@
         <a-descriptions-item label="操作">{{ currentLog.action }}</a-descriptions-item>
         <a-descriptions-item label="消息">{{ currentLog.message }}</a-descriptions-item>
         <a-descriptions-item label="详情" v-if="currentLog.detail">
-          <pre class="detail-pre">{{ currentLog.detail }}</pre>
+          <pre class="detail-pre" :class="{ 'detail-pre-fullscreen': isFullscreen }">{{ currentLog.detail }}</pre>
         </a-descriptions-item>
         <a-descriptions-item label="IP" v-if="currentLog.ip">{{ currentLog.ip }}</a-descriptions-item>
         <a-descriptions-item label="耗时" v-if="currentLog.duration">{{ currentLog.duration }}ms</a-descriptions-item>
@@ -107,7 +118,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { SearchOutlined } from '@ant-design/icons-vue'
+import { SearchOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons-vue'
 import dayjs, { Dayjs } from 'dayjs'
 import { logApi } from '../api'
 
@@ -128,6 +139,7 @@ const logs = ref<LogEntry[]>([])
 const detailVisible = ref(false)
 const currentLog = ref<LogEntry | null>(null)
 const dateRange = ref<[Dayjs, Dayjs] | null>(null)
+const isFullscreen = ref(false)
 
 const filters = reactive({
   level: undefined as string | undefined,
@@ -233,10 +245,24 @@ onMounted(loadLogs)
   margin: 0;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 200px;
+  max-height: 300px;
   overflow: auto;
   background: #f5f5f5;
-  padding: 8px;
+  padding: 12px;
   border-radius: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.detail-pre-fullscreen {
+  max-height: none;
+  height: auto;
+}
+
+.modal-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 32px;
 }
 </style>

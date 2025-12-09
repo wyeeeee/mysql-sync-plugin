@@ -14,6 +14,14 @@ api.interceptors.request.use(
     if (authStore.token) {
       config.headers.Authorization = `Bearer ${authStore.token}`
     }
+    // 禁用浏览器缓存
+    config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    config.headers['Pragma'] = 'no-cache'
+    config.headers['Expires'] = '0'
+    // GET 请求添加时间戳参数防止缓存
+    if (config.method?.toLowerCase() === 'get') {
+      config.params = { ...config.params, _t: Date.now() }
+    }
     return config
   },
   (error) => Promise.reject(error)
