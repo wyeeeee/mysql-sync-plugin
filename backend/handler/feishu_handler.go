@@ -88,9 +88,9 @@ func (h *FeishuHandler) TableMeta(c *gin.Context) {
 	} else {
 		executedSQL = fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, COLUMN_KEY, COLUMN_COMMENT FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'", config.Database, config.Table)
 	}
-	detail := fmt.Sprintf("[飞书] 主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s", config.Host, config.Port, config.Database, config.Table, config.QueryMode, executedSQL)
+	detail := fmt.Sprintf("主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s", config.Host, config.Port, config.Database, config.Table, config.QueryMode, executedSQL)
 
-	h.log.InfoWithDetail("获取表结构", "开始获取表结构(飞书)", detail)
+	h.log.InfoWithDetail("获取表结构", "开始获取表结构", detail)
 
 	// 构建钉钉格式的请求，复用服务层
 	// 使用不含字段映射的配置，让 fieldID 保持原始英文字段名
@@ -119,7 +119,7 @@ func (h *FeishuHandler) TableMeta(c *gin.Context) {
 	// 转换为飞书格式，并应用字段映射到 fieldName
 	feishuData := models.ConvertToFeishuTableMetaWithMappings(data, fieldMappings)
 
-	h.log.LogWithRequest(logger.LevelInfo, "获取表结构", fmt.Sprintf("[飞书] 成功获取 %d 个字段", len(feishuData.Fields)), detail, ip, c.GetHeader("User-Agent"), duration)
+	h.log.LogWithRequest(logger.LevelInfo, "获取表结构", fmt.Sprintf("成功获取 %d 个字段", len(feishuData.Fields)), detail, ip, c.GetHeader("User-Agent"), duration)
 
 	c.JSON(http.StatusOK, models.FeishuResponse{
 		Code: models.FeishuCodeSuccess,
@@ -205,10 +205,10 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 	} else {
 		executedSQL = fmt.Sprintf("SELECT * FROM `%s` LIMIT %d OFFSET %d", config.Table, maxResults, offset)
 	}
-	detail := fmt.Sprintf("[飞书] 主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s",
+	detail := fmt.Sprintf("主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s",
 		config.Host, config.Port, config.Database, config.Table, config.QueryMode, executedSQL)
 
-	h.log.InfoWithDetail("获取记录", "开始获取表记录(飞书)", detail)
+	h.log.InfoWithDetail("获取记录", "开始获取表记录", detail)
 
 	// 构建钉钉格式的请求，复用服务层
 	// 使用不含字段映射的配置，让字段key保持原始英文字段名
@@ -240,7 +240,7 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 	feishuData := models.ConvertToFeishuRecords(data)
 
 	h.log.LogWithRequest(logger.LevelInfo, "获取记录",
-		fmt.Sprintf("[飞书] 成功获取 %d 条记录, 还有更多: %v", len(feishuData.Records), feishuData.HasMore),
+		fmt.Sprintf("成功获取 %d 条记录, 还有更多: %v", len(feishuData.Records), feishuData.HasMore),
 		detail, ip, c.GetHeader("User-Agent"), duration)
 
 	c.JSON(http.StatusOK, models.FeishuResponse{

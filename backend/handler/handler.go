@@ -24,7 +24,7 @@ type Handler struct {
 func NewHandler() *Handler {
 	return &Handler{
 		mysqlService: service.NewMySQLService(),
-		log:          logger.New("api"),
+		log:          logger.New("dingtalk-api"),
 	}
 }
 
