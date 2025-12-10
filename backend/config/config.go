@@ -20,7 +20,7 @@ type Config struct {
 // Load 加载配置
 func Load() *Config {
 	return &Config{
-		ServerPort: getEnv("SERVER_PORT", "7139"),
+		ServerPort: getEnv("SERVER_PORT", "7138"),
 		SecretKey:  getEnv("SECRET_KEY", "your-secret-key-here"),
 		DBPath:     getEnv("DB_PATH", "./data/app.db"),
 		Debug:      getEnv("DEBUG", "false") == "true",

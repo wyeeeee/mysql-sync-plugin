@@ -8,11 +8,11 @@
     "uris": [
       {
         "method": "sheetMeta",
-        "uri": "/api/sheet_meta"
+        "uri": "/dingtalk/api/sheet_meta"
       },
       {
         "method": "records",
-        "uri": "/api/records"
+        "uri": "/dingtalk/api/records"
       }
     ]
   }

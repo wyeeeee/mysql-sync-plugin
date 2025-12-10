@@ -7,9 +7,14 @@ backend/mysql-sync-server
 backend/mysql-sync-server.exe
 
 # 前端
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
+frontend-dingtalk/node_modules/
+frontend-dingtalk/dist/
+frontend-dingtalk/.vite/
+
+# 前端
+frontend-feishu/node_modules/
+frontend-feishu/dist/
+frontend-feishu/.vite/
 
 # 前端
 admin-frontend/node_modules/

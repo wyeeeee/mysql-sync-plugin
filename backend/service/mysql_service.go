@@ -319,6 +319,13 @@ func (s *MySQLService) getTableRecords(db *sql.DB, table string, fields []models
 		return nil, err
 	}
 
+	// 构建字段类型映射
+	fieldTypeMap := make(map[string]string)
+	for _, f := range fields {
+		columnName := strings.TrimPrefix(f.ID, "fid_")
+		fieldTypeMap[columnName] = f.Type
+	}
+
 	var records []models.Record
 	for rows.Next() {
 		// 创建扫描目标
@@ -340,18 +347,10 @@ func (s *MySQLService) getTableRecords(db *sql.DB, table string, fields []models
 		for i, col := range columns {
 			fieldID := fmt.Sprintf("fid_%s", col)
 			value := values[i]
+			fieldType := fieldTypeMap[col]
 
-			// 处理NULL值和类型转换
-			if value != nil {
-				switch v := value.(type) {
-				case []byte:
-					record.Fields[fieldID] = string(v)
-				default:
-					record.Fields[fieldID] = v
-				}
-			} else {
-				record.Fields[fieldID] = nil
-			}
+			// 根据字段类型正确转换数据
+			record.Fields[fieldID] = s.convertValue(value, fieldType)
 
 			// 第一个字段作为记录ID(通常是主键)
 			if i == 0 && value != nil {
@@ -373,7 +372,11 @@ func (s *MySQLService) mapMySQLTypeToAITable(mysqlType string) string {
 	if strings.Contains(mysqlType, "int") ||
 		strings.Contains(mysqlType, "decimal") ||
 		strings.Contains(mysqlType, "float") ||
-		strings.Contains(mysqlType, "double") {
+		strings.Contains(mysqlType, "double") ||
+		strings.Contains(mysqlType, "numeric") ||
+		strings.Contains(mysqlType, "real") ||
+		strings.Contains(mysqlType, "money") ||
+		mysqlType == "bit" {
 		return "number"
 	}
 
@@ -385,6 +388,79 @@ func (s *MySQLService) mapMySQLTypeToAITable(mysqlType string) string {
 
 	// 默认为文本
 	return "text"
+}
+
+// convertValue 根据字段类型转换值
+func (s *MySQLService) convertValue(value interface{}, fieldType string) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	// 数字类型处理
+	if fieldType == "number" {
+		return s.toNumber(value)
+	}
+
+	// 非数字类型，转换为字符串
+	switch v := value.(type) {
+	case []byte:
+		return string(v)
+	case string:
+		return v
+	case int64:
+		return v
+	case float64:
+		return v
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// toNumber 将值转换为数字类型
+func (s *MySQLService) toNumber(value interface{}) interface{} {
+	if value == nil {
+		return nil
+	}
+
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int32:
+		return int64(v)
+	case int:
+		return int64(v)
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case []byte:
+		strVal := string(v)
+		if strVal == "" {
+			return nil
+		}
+		if f, err := strconv.ParseFloat(strVal, 64); err == nil {
+			return f
+		}
+		return nil
+	case string:
+		if v == "" {
+			return nil
+		}
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		}
+		return nil
+	default:
+		// 尝试转换任何其他类型
+		strVal := fmt.Sprintf("%v", v)
+		if strVal == "" {
+			return nil
+		}
+		if f, err := strconv.ParseFloat(strVal, 64); err == nil {
+			return f
+		}
+		return nil
+	}
 }
 
 // getNumberProperty 获取数字类型属性
@@ -420,7 +496,7 @@ func (s *MySQLService) applyFieldMappings(fields []models.Field, mappings []mode
 		}
 	}
 
-	// 应用映射：同时修改 Name 和 ID
+	// 应用映射：同时修改 Name 和 ID（钉钉需要这样来显示别名）
 	for i := range fields {
 		if alias, ok := aliasMap[fields[i].Name]; ok {
 			fields[i].Name = alias
@@ -575,6 +651,13 @@ func (s *MySQLService) getSQLRecords(db *sql.DB, customSQL string, fields []mode
 		return nil, err
 	}
 
+	// 构建字段类型映射
+	fieldTypeMap := make(map[string]string)
+	for _, f := range fields {
+		columnName := strings.TrimPrefix(f.ID, "fid_")
+		fieldTypeMap[columnName] = f.Type
+	}
+
 	var records []models.Record
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
@@ -594,17 +677,10 @@ func (s *MySQLService) getSQLRecords(db *sql.DB, customSQL string, fields []mode
 		for i, col := range columns {
 			fieldID := fmt.Sprintf("fid_%s", col)
 			value := values[i]
+			fieldType := fieldTypeMap[col]
 
-			if value != nil {
-				switch v := value.(type) {
-				case []byte:
-					record.Fields[fieldID] = string(v)
-				default:
-					record.Fields[fieldID] = v
-				}
-			} else {
-				record.Fields[fieldID] = nil
-			}
+			// 根据字段类型正确转换数据
+			record.Fields[fieldID] = s.convertValue(value, fieldType)
 
 			if i == 0 && value != nil {
 				record.ID = fmt.Sprintf("%v", value)
