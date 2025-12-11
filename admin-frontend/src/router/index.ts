@@ -21,6 +21,16 @@ const router = createRouter({
           component: () => import('../views/Dashboard.vue')
         },
         {
+          path: 'users',
+          name: 'Users',
+          component: () => import('../views/Users.vue')
+        },
+        {
+          path: 'datasources',
+          name: 'Datasources',
+          component: () => import('../views/Datasources.vue')
+        },
+        {
           path: 'logs',
           name: 'Logs',
           component: () => import('../views/Logs.vue')

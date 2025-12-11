@@ -67,4 +67,118 @@ export const systemApi = {
   getInfo: () => api.get('/system/info')
 }
 
+// 用户管理相关
+export const userApi = {
+  createUser: (data: {
+    username: string
+    password: string
+    role: string
+    displayName?: string
+  }) => api.post('/users', data),
+  listUsers: (params: {
+    page?: number
+    pageSize?: number
+    role?: string
+    status?: string
+    keyword?: string
+  }) => api.get('/users', { params }),
+  getUser: (id: number) => api.get(`/users/${id}`),
+  updateUser: (id: number, data: { displayName?: string; role?: string }) =>
+    api.put(`/users/${id}`, data),
+  deleteUser: (id: number) => api.delete(`/users/${id}`),
+  updateUserStatus: (id: number, status: string) =>
+    api.put(`/users/${id}/status`, { status }),
+  resetPassword: (id: number, newPassword: string) =>
+    api.put(`/users/${id}/password`, { newPassword })
+}
+
+// 数据源管理相关
+export const datasourceApi = {
+  createDatasource: (data: {
+    name: string
+    description?: string
+    host: string
+    port: number
+    databaseName: string
+    username: string
+    password: string
+  }) => api.post('/datasources', data),
+  listDatasources: (params: {
+    page?: number
+    pageSize?: number
+    keyword?: string
+  }) => api.get('/datasources', { params }),
+  getDatasource: (id: number) => api.get(`/datasources/${id}`),
+  updateDatasource: (
+    id: number,
+    data: {
+      name?: string
+      description?: string
+      host?: string
+      port?: number
+      databaseName?: string
+      username?: string
+      password?: string
+    }
+  ) => api.put(`/datasources/${id}`, data),
+  deleteDatasource: (id: number) => api.delete(`/datasources/${id}`),
+  testConnection: (id: number) => api.post(`/datasources/${id}/test`),
+
+  // 表配置管理
+  createTable: (
+    datasourceId: number,
+    data: {
+      tableName: string
+      tableAlias?: string
+      queryMode: string
+      customSql?: string
+      fieldMappings?: Array<{ mysqlField: string; aliasField: string }>
+    }
+  ) => api.post(`/datasources/${datasourceId}/tables`, data),
+  listTables: (datasourceId: number) =>
+    api.get(`/datasources/${datasourceId}/tables`),
+  getTable: (id: number) => api.get(`/datasource-tables/${id}`),
+  updateTable: (
+    id: number,
+    data: {
+      tableAlias?: string
+      queryMode?: string
+      customSql?: string
+      fieldMappings?: Array<{ mysqlField: string; aliasField: string }>
+    }
+  ) => api.put(`/datasource-tables/${id}`, data),
+  deleteTable: (id: number) => api.delete(`/datasource-tables/${id}`),
+  getFieldMappings: (tableId: number) =>
+    api.get(`/datasource-tables/${tableId}/fields`),
+  updateFieldMappings: (
+    tableId: number,
+    fieldMappings: Array<{ mysqlField: string; aliasField: string }>
+  ) => api.post(`/datasource-tables/${tableId}/fields`, { fieldMappings })
+}
+
+// 权限管理相关
+export const permissionApi = {
+  // 数据源权限
+  grantDatasourcePermissions: (userId: number, datasourceIds: number[]) =>
+    api.post(`/users/${userId}/datasources`, { datasourceIds }),
+  revokeDatasourcePermission: (userId: number, datasourceId: number) =>
+    api.delete(`/users/${userId}/datasources/${datasourceId}`),
+  listUserDatasources: (userId: number) =>
+    api.get(`/users/${userId}/datasources`),
+  listAllDatasourcesWithPermission: (userId: number) =>
+    api.get(`/users/${userId}/datasources-with-permission`),
+
+  // 表权限
+  grantTablePermissions: (userId: number, tableIds: number[]) =>
+    api.post(`/users/${userId}/tables`, { tableIds }),
+  revokeTablePermission: (userId: number, tableId: number) =>
+    api.delete(`/users/${userId}/tables/${tableId}`),
+  listUserTables: (userId: number, datasourceId: number) =>
+    api.get(`/users/${userId}/tables`, { params: { datasourceId } }),
+  listAllTablesWithPermission: (userId: number, datasourceId: number) =>
+    api.get(`/users/${userId}/tables-with-permission`, {
+      params: { datasourceId }
+    })
+}
+
 export default api

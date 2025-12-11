@@ -16,6 +16,18 @@
             <span>仪表盘</span>
           </router-link>
         </a-menu-item>
+        <a-menu-item key="/users">
+          <router-link to="/users">
+            <TeamOutlined />
+            <span>用户管理</span>
+          </router-link>
+        </a-menu-item>
+        <a-menu-item key="/datasources">
+          <router-link to="/datasources">
+            <DatabaseOutlined />
+            <span>数据源管理</span>
+          </router-link>
+        </a-menu-item>
         <a-menu-item key="/logs">
           <router-link to="/logs">
             <FileTextOutlined />
@@ -62,6 +74,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
   DashboardOutlined,
+  TeamOutlined,
+  DatabaseOutlined,
   FileTextOutlined,
   SettingOutlined,
   UserOutlined,
