@@ -28,6 +28,16 @@ type GrantTablePermissionRequest struct {
 	TableIDs []int64 `json:"tableIds" binding:"required"`
 }
 
+// RevokeDatasourcePermissionRequest 批量撤销数据源权限请求
+type RevokeDatasourcePermissionRequest struct {
+	DatasourceIDs []int64 `json:"datasourceIds" binding:"required"`
+}
+
+// RevokeTablePermissionRequest 批量撤销表权限请求
+type RevokeTablePermissionRequest struct {
+	TableIDs []int64 `json:"tableIds" binding:"required"`
+}
+
 // UserDatasourceWithPermission 用户数据源及权限信息
 type UserDatasourceWithPermission struct {
 	Datasource

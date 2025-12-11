@@ -178,6 +178,8 @@ export const permissionApi = {
     api.post(`/users/${userId}/datasources`, { datasourceIds }),
   revokeDatasourcePermission: (userId: number, datasourceId: number) =>
     api.delete(`/users/${userId}/datasources/${datasourceId}`),
+  revokeDatasourcePermissions: (userId: number, datasourceIds: number[]) =>
+    api.delete(`/users/${userId}/datasources`, { data: { datasourceIds } }),
   listUserDatasources: (userId: number) =>
     api.get(`/users/${userId}/datasources`),
   listAllDatasourcesWithPermission: (userId: number) =>
@@ -188,6 +190,8 @@ export const permissionApi = {
     api.post(`/users/${userId}/tables`, { tableIds }),
   revokeTablePermission: (userId: number, tableId: number) =>
     api.delete(`/users/${userId}/tables/${tableId}`),
+  revokeTablePermissions: (userId: number, tableIds: number[]) =>
+    api.delete(`/users/${userId}/tables`, { data: { tableIds } }),
   listUserTables: (userId: number, datasourceId: number) =>
     api.get(`/users/${userId}/tables`, { params: { datasourceId } }),
   listAllTablesWithPermission: (userId: number, datasourceId: number) =>

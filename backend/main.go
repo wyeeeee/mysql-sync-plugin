@@ -197,11 +197,13 @@ func main() {
 		// 权限管理（需要管理员权限）
 		adminAPI.POST("/users/:id/datasources", auth.RequireAdminRole(), permissionH.GrantDatasourcePermissions)
 		adminAPI.DELETE("/users/:id/datasources/:dsId", auth.RequireAdminRole(), permissionH.RevokeDatasourcePermission)
+		adminAPI.DELETE("/users/:id/datasources", auth.RequireAdminRole(), permissionH.RevokeDatasourcePermissions)
 		adminAPI.GET("/users/:id/datasources", auth.RequireAdminRole(), permissionH.ListUserDatasources)
 		adminAPI.GET("/users/:id/datasources-with-permission", auth.RequireAdminRole(), permissionH.ListAllDatasourcesWithPermission)
 
 		adminAPI.POST("/users/:id/tables", auth.RequireAdminRole(), permissionH.GrantTablePermissions)
 		adminAPI.DELETE("/users/:id/tables/:tableId", auth.RequireAdminRole(), permissionH.RevokeTablePermission)
+		adminAPI.DELETE("/users/:id/tables", auth.RequireAdminRole(), permissionH.RevokeTablePermissions)
 		adminAPI.GET("/users/:id/tables", auth.RequireAdminRole(), permissionH.ListUserTables)
 		adminAPI.GET("/users/:id/tables-with-permission", auth.RequireAdminRole(), permissionH.ListAllTablesWithPermission)
 	}

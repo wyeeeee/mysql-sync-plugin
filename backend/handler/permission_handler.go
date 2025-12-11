@@ -99,6 +99,43 @@ func (h *PermissionHandler) RevokeDatasourcePermission(c *gin.Context) {
 	})
 }
 
+// RevokeDatasourcePermissions 批量撤销数据源权限
+func (h *PermissionHandler) RevokeDatasourcePermissions(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "无效的用户ID",
+		})
+		return
+	}
+
+	var req models.RevokeDatasourcePermissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if err := h.permissionService.RevokeDatasourcePermissions(userID, req.DatasourceIDs); err != nil {
+		h.log.Errorf("批量撤销数据源权限", "批量撤销数据源权限失败: %v", err)
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeThirdPartyError,
+			Msg:  "批量撤销数据源权限失败: " + err.Error(),
+		})
+		return
+	}
+
+	h.log.Infof("批量撤销数据源权限", "成功撤销用户ID %d 的 %d 个数据源权限", userID, len(req.DatasourceIDs))
+	c.JSON(http.StatusOK, models.Response{
+		Code: models.CodeSuccess,
+		Msg:  "撤销成功",
+	})
+}
+
 // ListUserDatasources 获取用户数据源列表
 func (h *PermissionHandler) ListUserDatasources(c *gin.Context) {
 	idStr := c.Param("id")
@@ -224,6 +261,43 @@ func (h *PermissionHandler) RevokeTablePermission(c *gin.Context) {
 	}
 
 	h.log.Infof("撤销表权限", "成功撤销用户ID %d 对表ID %d 的权限", userID, tableID)
+	c.JSON(http.StatusOK, models.Response{
+		Code: models.CodeSuccess,
+		Msg:  "撤销成功",
+	})
+}
+
+// RevokeTablePermissions 批量撤销表权限
+func (h *PermissionHandler) RevokeTablePermissions(c *gin.Context) {
+	idStr := c.Param("id")
+	userID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "无效的用户ID",
+		})
+		return
+	}
+
+	var req models.RevokeTablePermissionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if err := h.permissionService.RevokeTablePermissions(userID, req.TableIDs); err != nil {
+		h.log.Errorf("批量撤销表权限", "批量撤销表权限失败: %v", err)
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeThirdPartyError,
+			Msg:  "批量撤销表权限失败: " + err.Error(),
+		})
+		return
+	}
+
+	h.log.Infof("批量撤销表权限", "成功撤销用户ID %d 的 %d 个表权限", userID, len(req.TableIDs))
 	c.JSON(http.StatusOK, models.Response{
 		Code: models.CodeSuccess,
 		Msg:  "撤销成功",

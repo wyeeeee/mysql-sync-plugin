@@ -105,41 +105,13 @@
       </a-table>
     </a-card>
 
-    <!-- 创建/编辑用户对话框 -->
-    <a-modal
+    <!-- 用户表单组件 -->
+    <UserForm
       v-model:open="modalVisible"
-      :title="modalTitle"
-      @ok="handleModalOk"
-      @cancel="handleModalCancel"
-    >
-      <a-form :model="formData" :label-col="{ span: 6 }">
-        <a-form-item label="用户名" required>
-          <a-input
-            v-model:value="formData.username"
-            :disabled="isEdit"
-            placeholder="请输入用户名"
-          />
-        </a-form-item>
-        <a-form-item v-if="!isEdit" label="密码" required>
-          <a-input-password
-            v-model:value="formData.password"
-            placeholder="请输入密码(至少6位)"
-          />
-        </a-form-item>
-        <a-form-item label="显示名称">
-          <a-input
-            v-model:value="formData.displayName"
-            placeholder="请输入显示名称"
-          />
-        </a-form-item>
-        <a-form-item label="角色" required>
-          <a-select v-model:value="formData.role" placeholder="请选择角色">
-            <a-select-option value="admin">管理员</a-select-option>
-            <a-select-option value="user">普通用户</a-select-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
+      :is-edit="isEdit"
+      :user="currentUser"
+      @success="loadUsers"
+    />
 
     <!-- 重置密码对话框 -->
     <a-modal
@@ -158,93 +130,11 @@
       </a-form>
     </a-modal>
 
-    <!-- 权限管理对话框 -->
-    <a-modal
+    <!-- 权限管理组件 -->
+    <PermissionModal
       v-model:open="permissionVisible"
-      title="权限管理"
-      width="800px"
-      @ok="permissionVisible = false"
-      @cancel="permissionVisible = false"
-    >
-      <a-tabs v-model:activeKey="permissionTab">
-        <a-tab-pane key="datasource" tab="数据源权限">
-          <a-checkbox-group
-            v-model:value="selectedDatasources"
-            style="width: 100%"
-            @change="handleDatasourcePermissionChange"
-          >
-            <a-row>
-              <a-col
-                v-for="ds in datasourcesWithPermission"
-                :key="ds.id"
-                :span="24"
-                style="margin-bottom: 8px"
-              >
-                <a-checkbox :value="ds.id">
-                  {{ ds.name }}
-                  <span style="color: #999; margin-left: 8px">
-                    {{ ds.description }}
-                  </span>
-                </a-checkbox>
-              </a-col>
-            </a-row>
-          </a-checkbox-group>
-        </a-tab-pane>
-        <a-tab-pane key="table" tab="表权限">
-          <a-form-item label="选择数据源">
-            <a-select
-              v-model:value="currentDatasourceId"
-              placeholder="请选择数据源"
-              style="width: 100%"
-              @change="loadTablesWithPermission"
-            >
-              <a-select-option
-                v-for="ds in userDatasources"
-                :key="ds.id"
-                :value="ds.id"
-              >
-                {{ ds.name }}
-              </a-select-option>
-            </a-select>
-          </a-form-item>
-          <div v-if="!currentDatasourceId" style="text-align: center; padding: 20px; color: #999">
-            请先选择一个数据源
-          </div>
-          <div v-else>
-            <div style="margin-bottom: 8px">
-              <a-checkbox
-                :indeterminate="selectedTables.length > 0 && selectedTables.length < tablesWithPermission.length"
-                :checked="selectedTables.length === tablesWithPermission.length && tablesWithPermission.length > 0"
-                @change="handleSelectAllTables"
-              >
-                全选
-              </a-checkbox>
-            </div>
-            <a-checkbox-group
-              v-model:value="selectedTables"
-              style="width: 100%"
-              @change="handleTablePermissionChange"
-            >
-              <a-row>
-                <a-col
-                  v-for="table in tablesWithPermission"
-                  :key="table.id"
-                  :span="24"
-                  style="margin-bottom: 8px"
-                >
-                  <a-checkbox :value="table.id">
-                    {{ table.tableAlias || table.tableName }}
-                    <span style="color: #999; margin-left: 8px">
-                      ({{ table.tableName }})
-                    </span>
-                  </a-checkbox>
-                </a-col>
-              </a-row>
-            </a-checkbox-group>
-          </div>
-        </a-tab-pane>
-      </a-tabs>
-    </a-modal>
+      :user="currentPermissionUser"
+    />
   </div>
 </template>
 
@@ -252,7 +142,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
-import { userApi, datasourceApi, permissionApi } from '../api'
+import { userApi } from '../api'
+import UserForm from '../components/user/UserForm.vue'
+import PermissionModal from '../components/user/PermissionModal.vue'
 
 const loading = ref(false)
 const users = ref<any[]>([])
@@ -278,35 +170,17 @@ const columns = [
   { title: '操作', key: 'action', width: 350 }
 ]
 
-// 模态框相关
 const modalVisible = ref(false)
-const modalTitle = ref('新建用户')
 const isEdit = ref(false)
-const formData = reactive({
-  id: 0,
-  username: '',
-  password: '',
-  displayName: '',
-  role: 'user'
-})
+const currentUser = ref<any>(null)
 
-// 重置密码相关
 const resetPasswordVisible = ref(false)
 const currentUserId = ref(0)
 const newPassword = ref('')
 
-// 权限管理相关
 const permissionVisible = ref(false)
-const permissionTab = ref('datasource')
 const currentPermissionUser = ref<any>(null)
-const datasourcesWithPermission = ref<any[]>([])
-const selectedDatasources = ref<number[]>([])
-const userDatasources = ref<any[]>([])
-const currentDatasourceId = ref<number>()
-const tablesWithPermission = ref<any[]>([])
-const selectedTables = ref<number[]>([])
 
-// 加载用户列表
 const loadUsers = async () => {
   loading.value = true
   try {
@@ -328,13 +202,11 @@ const loadUsers = async () => {
   }
 }
 
-// 搜索
 const handleSearch = () => {
   pagination.current = 1
   loadUsers()
 }
 
-// 重置搜索
 const handleReset = () => {
   searchForm.role = undefined
   searchForm.status = undefined
@@ -342,96 +214,30 @@ const handleReset = () => {
   handleSearch()
 }
 
-// 表格变化
 const handleTableChange = (pag: any) => {
   pagination.current = pag.current
   pagination.pageSize = pag.pageSize
   loadUsers()
 }
 
-// 显示创建对话框
 const showCreateModal = () => {
-  modalTitle.value = '新建用户'
   isEdit.value = false
-  formData.id = 0
-  formData.username = ''
-  formData.password = ''
-  formData.displayName = ''
-  formData.role = 'user'
+  currentUser.value = null
   modalVisible.value = true
 }
 
-// 显示编辑对话框
 const showEditModal = (record: any) => {
-  modalTitle.value = '编辑用户'
   isEdit.value = true
-  formData.id = record.id
-  formData.username = record.username
-  formData.displayName = record.displayName
-  formData.role = record.role
+  currentUser.value = record
   modalVisible.value = true
 }
 
-// 对话框确认
-const handleModalOk = async () => {
-  if (!formData.username) {
-    message.error('请输入用户名')
-    return
-  }
-  if (!isEdit.value && !formData.password) {
-    message.error('请输入密码')
-    return
-  }
-  if (!isEdit.value && formData.password.length < 6) {
-    message.error('密码长度不能少于6位')
-    return
-  }
-  if (!formData.role) {
-    message.error('请选择角色')
-    return
-  }
-
-  try {
-    let res
-    if (isEdit.value) {
-      res = await userApi.updateUser(formData.id, {
-        displayName: formData.displayName,
-        role: formData.role
-      })
-    } else {
-      res = await userApi.createUser({
-        username: formData.username,
-        password: formData.password,
-        role: formData.role,
-        displayName: formData.displayName
-      })
-    }
-
-    if (res.code === 0) {
-      message.success(isEdit.value ? '更新成功' : '创建成功')
-      modalVisible.value = false
-      loadUsers()
-    } else {
-      message.error(res.msg || '操作失败')
-    }
-  } catch (error) {
-    message.error('操作失败')
-  }
-}
-
-// 对话框取消
-const handleModalCancel = () => {
-  modalVisible.value = false
-}
-
-// 显示重置密码对话框
 const showResetPasswordModal = (record: any) => {
   currentUserId.value = record.id
   newPassword.value = ''
   resetPasswordVisible.value = true
 }
 
-// 重置密码
 const handleResetPassword = async () => {
   if (!newPassword.value) {
     message.error('请输入新密码')
@@ -455,7 +261,6 @@ const handleResetPassword = async () => {
   }
 }
 
-// 切换用户状态
 const toggleUserStatus = (record: any) => {
   const newStatus = record.status === 'active' ? 'disabled' : 'active'
   const action = newStatus === 'active' ? '启用' : '禁用'
@@ -479,7 +284,6 @@ const toggleUserStatus = (record: any) => {
   })
 }
 
-// 删除用户
 const handleDelete = (record: any) => {
   Modal.confirm({
     title: '确认删除?',
@@ -503,173 +307,9 @@ const handleDelete = (record: any) => {
   })
 }
 
-// 显示权限管理对话框
-const showPermissionModal = async (record: any) => {
+const showPermissionModal = (record: any) => {
   currentPermissionUser.value = record
-  permissionTab.value = 'datasource'
-  currentDatasourceId.value = undefined
-  tablesWithPermission.value = []
-  selectedTables.value = []
   permissionVisible.value = true
-  await loadDatasourcesWithPermission()
-}
-
-// 加载数据源权限
-const loadDatasourcesWithPermission = async () => {
-  try {
-    const res = await permissionApi.listAllDatasourcesWithPermission(
-      currentPermissionUser.value.id
-    )
-    if (res.code === 0) {
-      datasourcesWithPermission.value = res.data || []
-      selectedDatasources.value = datasourcesWithPermission.value
-        .filter((ds: any) => ds.hasPermission)
-        .map((ds: any) => ds.id)
-
-      // 同时加载用户已有权限的数据源列表
-      const userDsRes = await permissionApi.listUserDatasources(
-        currentPermissionUser.value.id
-      )
-      if (userDsRes.code === 0) {
-        userDatasources.value = userDsRes.data || []
-
-        // 如果用户有数据源权限,自动选择第一个数据源并加载表权限
-        if (userDatasources.value.length > 0) {
-          currentDatasourceId.value = userDatasources.value[0].id
-          await loadTablesWithPermission()
-        }
-      }
-    }
-  } catch (error) {
-    message.error('加载数据源权限失败')
-  }
-}
-
-// 数据源权限变化
-const handleDatasourcePermissionChange = async (checkedValues: number[]) => {
-  const userId = currentPermissionUser.value.id
-  const oldValues = datasourcesWithPermission.value
-    .filter((ds: any) => ds.hasPermission)
-    .map((ds: any) => ds.id)
-
-  // 找出新增和删除的
-  const added = checkedValues.filter((id) => !oldValues.includes(id))
-  const removed = oldValues.filter((id) => !checkedValues.includes(id))
-
-  try {
-    if (added.length > 0) {
-      await permissionApi.grantDatasourcePermissions(userId, added)
-    }
-    for (const dsId of removed) {
-      await permissionApi.revokeDatasourcePermission(userId, dsId)
-    }
-    message.success('权限更新成功')
-    await loadDatasourcesWithPermission()
-  } catch (error) {
-    message.error('权限更新失败')
-  }
-}
-
-// 加载表权限
-const loadTablesWithPermission = async () => {
-  if (!currentDatasourceId.value) return
-
-  try {
-    const res = await permissionApi.listAllTablesWithPermission(
-      currentPermissionUser.value.id,
-      currentDatasourceId.value
-    )
-    if (res.code === 0) {
-      tablesWithPermission.value = res.data || []
-      selectedTables.value = tablesWithPermission.value
-        .filter((table: any) => table.hasPermission)
-        .map((table: any) => table.id)
-    }
-  } catch (error) {
-    message.error('加载表权限失败')
-  }
-}
-
-// 防抖标志,避免重复调用
-let isUpdatingPermission = false
-
-// 全选/取消全选表权限
-const handleSelectAllTables = async (e: any) => {
-  if (isUpdatingPermission) return
-
-  isUpdatingPermission = true
-  try {
-    const userId = currentPermissionUser.value.id
-    const oldValues = tablesWithPermission.value
-      .filter((table: any) => table.hasPermission)
-      .map((table: any) => table.id)
-
-    if (e.target.checked) {
-      // 全选:授予所有表权限
-      const allTableIds = tablesWithPermission.value.map((table: any) => table.id)
-      const added = allTableIds.filter((id) => !oldValues.includes(id))
-
-      if (added.length > 0) {
-        await permissionApi.grantTablePermissions(userId, added)
-        message.success('权限更新成功')
-      }
-      selectedTables.value = allTableIds
-    } else {
-      // 取消全选:撤销所有表权限
-      if (oldValues.length > 0) {
-        for (const tableId of oldValues) {
-          await permissionApi.revokeTablePermission(userId, tableId)
-        }
-        message.success('权限更新成功')
-      }
-      selectedTables.value = []
-    }
-
-    // 重新加载表权限以更新状态
-    await loadTablesWithPermission()
-  } catch (error) {
-    message.error('权限更新失败')
-    // 失败时也重新加载以恢复正确状态
-    await loadTablesWithPermission()
-  } finally {
-    isUpdatingPermission = false
-  }
-}
-
-// 表权限变化
-const handleTablePermissionChange = async (checkedValues: number[]) => {
-  if (isUpdatingPermission) return
-
-  isUpdatingPermission = true
-  try {
-    const userId = currentPermissionUser.value.id
-    const oldValues = tablesWithPermission.value
-      .filter((table: any) => table.hasPermission)
-      .map((table: any) => table.id)
-
-    // 找出新增和删除的
-    const added = checkedValues.filter((id) => !oldValues.includes(id))
-    const removed = oldValues.filter((id) => !checkedValues.includes(id))
-
-    if (added.length > 0) {
-      await permissionApi.grantTablePermissions(userId, added)
-    }
-    for (const tableId of removed) {
-      await permissionApi.revokeTablePermission(userId, tableId)
-    }
-
-    if (added.length > 0 || removed.length > 0) {
-      message.success('权限更新成功')
-      // 重新加载表权限以更新状态
-      await loadTablesWithPermission()
-    }
-  } catch (error) {
-    message.error('权限更新失败')
-    // 失败时也重新加载以恢复正确状态
-    await loadTablesWithPermission()
-  } finally {
-    isUpdatingPermission = false
-  }
 }
 
 onMounted(() => {
