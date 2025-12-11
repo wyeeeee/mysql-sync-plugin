@@ -153,7 +153,22 @@ export const datasourceApi = {
   updateFieldMappings: (
     tableId: number,
     fieldMappings: Array<{ mysqlField: string; aliasField: string }>
-  ) => api.post(`/datasource-tables/${tableId}/fields`, { fieldMappings })
+  ) => api.post(`/datasource-tables/${tableId}/fields`, { fieldMappings }),
+
+  // 数据源辅助接口
+  getDatabaseList: (datasourceId: number) =>
+    api.get(`/datasources/${datasourceId}/databases`),
+  getTableList: (datasourceId: number, database: string) =>
+    api.get(`/datasources/${datasourceId}/db-tables`, { params: { database } }),
+  getFieldList: (datasourceId: number, database: string, table: string) =>
+    api.get(`/datasources/${datasourceId}/db-fields`, {
+      params: { database, table }
+    }),
+  getFieldListFromSQL: (datasourceId: number, database: string, customSql: string) =>
+    api.post(`/datasources/${datasourceId}/db-fields-from-sql`, {
+      database,
+      customSql
+    })
 }
 
 // 权限管理相关

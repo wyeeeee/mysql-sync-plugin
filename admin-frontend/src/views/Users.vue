@@ -190,7 +190,7 @@
             </a-row>
           </a-checkbox-group>
         </a-tab-pane>
-        <a-tab-pane key="table" tab="表权限" :disabled="!currentDatasourceId">
+        <a-tab-pane key="table" tab="表权限">
           <a-form-item label="选择数据源">
             <a-select
               v-model:value="currentDatasourceId"
@@ -207,27 +207,41 @@
               </a-select-option>
             </a-select>
           </a-form-item>
-          <a-checkbox-group
-            v-model:value="selectedTables"
-            style="width: 100%"
-            @change="handleTablePermissionChange"
-          >
-            <a-row>
-              <a-col
-                v-for="table in tablesWithPermission"
-                :key="table.id"
-                :span="24"
-                style="margin-bottom: 8px"
+          <div v-if="!currentDatasourceId" style="text-align: center; padding: 20px; color: #999">
+            请先选择一个数据源
+          </div>
+          <div v-else>
+            <div style="margin-bottom: 8px">
+              <a-checkbox
+                :indeterminate="selectedTables.length > 0 && selectedTables.length < tablesWithPermission.length"
+                :checked="selectedTables.length === tablesWithPermission.length && tablesWithPermission.length > 0"
+                @change="handleSelectAllTables"
               >
-                <a-checkbox :value="table.id">
-                  {{ table.tableAlias || table.tableName }}
-                  <span style="color: #999; margin-left: 8px">
-                    ({{ table.tableName }})
-                  </span>
-                </a-checkbox>
-              </a-col>
-            </a-row>
-          </a-checkbox-group>
+                全选
+              </a-checkbox>
+            </div>
+            <a-checkbox-group
+              v-model:value="selectedTables"
+              style="width: 100%"
+              @change="handleTablePermissionChange"
+            >
+              <a-row>
+                <a-col
+                  v-for="table in tablesWithPermission"
+                  :key="table.id"
+                  :span="24"
+                  style="margin-bottom: 8px"
+                >
+                  <a-checkbox :value="table.id">
+                    {{ table.tableAlias || table.tableName }}
+                    <span style="color: #999; margin-left: 8px">
+                      ({{ table.tableName }})
+                    </span>
+                  </a-checkbox>
+                </a-col>
+              </a-row>
+            </a-checkbox-group>
+          </div>
         </a-tab-pane>
       </a-tabs>
     </a-modal>
@@ -493,6 +507,9 @@ const handleDelete = (record: any) => {
 const showPermissionModal = async (record: any) => {
   currentPermissionUser.value = record
   permissionTab.value = 'datasource'
+  currentDatasourceId.value = undefined
+  tablesWithPermission.value = []
+  selectedTables.value = []
   permissionVisible.value = true
   await loadDatasourcesWithPermission()
 }
@@ -515,6 +532,12 @@ const loadDatasourcesWithPermission = async () => {
       )
       if (userDsRes.code === 0) {
         userDatasources.value = userDsRes.data || []
+
+        // 如果用户有数据源权限,自动选择第一个数据源并加载表权限
+        if (userDatasources.value.length > 0) {
+          currentDatasourceId.value = userDatasources.value[0].id
+          await loadTablesWithPermission()
+        }
       }
     }
   } catch (error) {
@@ -567,28 +590,85 @@ const loadTablesWithPermission = async () => {
   }
 }
 
+// 防抖标志,避免重复调用
+let isUpdatingPermission = false
+
+// 全选/取消全选表权限
+const handleSelectAllTables = async (e: any) => {
+  if (isUpdatingPermission) return
+
+  isUpdatingPermission = true
+  try {
+    const userId = currentPermissionUser.value.id
+    const oldValues = tablesWithPermission.value
+      .filter((table: any) => table.hasPermission)
+      .map((table: any) => table.id)
+
+    if (e.target.checked) {
+      // 全选:授予所有表权限
+      const allTableIds = tablesWithPermission.value.map((table: any) => table.id)
+      const added = allTableIds.filter((id) => !oldValues.includes(id))
+
+      if (added.length > 0) {
+        await permissionApi.grantTablePermissions(userId, added)
+        message.success('权限更新成功')
+      }
+      selectedTables.value = allTableIds
+    } else {
+      // 取消全选:撤销所有表权限
+      if (oldValues.length > 0) {
+        for (const tableId of oldValues) {
+          await permissionApi.revokeTablePermission(userId, tableId)
+        }
+        message.success('权限更新成功')
+      }
+      selectedTables.value = []
+    }
+
+    // 重新加载表权限以更新状态
+    await loadTablesWithPermission()
+  } catch (error) {
+    message.error('权限更新失败')
+    // 失败时也重新加载以恢复正确状态
+    await loadTablesWithPermission()
+  } finally {
+    isUpdatingPermission = false
+  }
+}
+
 // 表权限变化
 const handleTablePermissionChange = async (checkedValues: number[]) => {
-  const userId = currentPermissionUser.value.id
-  const oldValues = tablesWithPermission.value
-    .filter((table: any) => table.hasPermission)
-    .map((table: any) => table.id)
+  if (isUpdatingPermission) return
 
-  // 找出新增和删除的
-  const added = checkedValues.filter((id) => !oldValues.includes(id))
-  const removed = oldValues.filter((id) => !checkedValues.includes(id))
-
+  isUpdatingPermission = true
   try {
+    const userId = currentPermissionUser.value.id
+    const oldValues = tablesWithPermission.value
+      .filter((table: any) => table.hasPermission)
+      .map((table: any) => table.id)
+
+    // 找出新增和删除的
+    const added = checkedValues.filter((id) => !oldValues.includes(id))
+    const removed = oldValues.filter((id) => !checkedValues.includes(id))
+
     if (added.length > 0) {
       await permissionApi.grantTablePermissions(userId, added)
     }
     for (const tableId of removed) {
       await permissionApi.revokeTablePermission(userId, tableId)
     }
-    message.success('权限更新成功')
-    await loadTablesWithPermission()
+
+    if (added.length > 0 || removed.length > 0) {
+      message.success('权限更新成功')
+      // 重新加载表权限以更新状态
+      await loadTablesWithPermission()
+    }
   } catch (error) {
     message.error('权限更新失败')
+    // 失败时也重新加载以恢复正确状态
+    await loadTablesWithPermission()
+  } finally {
+    isUpdatingPermission = false
   }
 }
 

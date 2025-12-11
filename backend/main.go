@@ -188,6 +188,12 @@ func main() {
 		adminAPI.GET("/datasource-tables/:id/fields", auth.RequireAdminRole(), datasourceH.GetFieldMappings)
 		adminAPI.POST("/datasource-tables/:id/fields", auth.RequireAdminRole(), datasourceH.UpdateFieldMappings)
 
+		// 数据源辅助接口（需要管理员权限）
+		adminAPI.GET("/datasources/:id/databases", auth.RequireAdminRole(), datasourceH.GetDatabaseList)
+		adminAPI.GET("/datasources/:id/db-tables", auth.RequireAdminRole(), datasourceH.GetTableList)
+		adminAPI.GET("/datasources/:id/db-fields", auth.RequireAdminRole(), datasourceH.GetFieldList)
+		adminAPI.POST("/datasources/:id/db-fields-from-sql", auth.RequireAdminRole(), datasourceH.GetFieldListFromSQL)
+
 		// 权限管理（需要管理员权限）
 		adminAPI.POST("/users/:id/datasources", auth.RequireAdminRole(), permissionH.GrantDatasourcePermissions)
 		adminAPI.DELETE("/users/:id/datasources/:dsId", auth.RequireAdminRole(), permissionH.RevokeDatasourcePermission)
