@@ -47,6 +47,9 @@ func (s *Store) Init(dbPath string) error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		username TEXT UNIQUE NOT NULL,
 		password TEXT NOT NULL,
+		role TEXT NOT NULL DEFAULT 'user',
+		display_name TEXT,
+		status TEXT NOT NULL DEFAULT 'active',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 	);
@@ -60,6 +63,71 @@ func (s *Store) Init(dbPath string) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 	CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+	CREATE TABLE IF NOT EXISTS datasources (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		host TEXT NOT NULL,
+		port INTEGER NOT NULL,
+		database_name TEXT NOT NULL,
+		username TEXT NOT NULL,
+		password TEXT NOT NULL,
+		created_by INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (created_by) REFERENCES users(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_datasources_created_by ON datasources(created_by);
+
+	CREATE TABLE IF NOT EXISTS datasource_tables (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		datasource_id INTEGER NOT NULL,
+		table_name TEXT NOT NULL,
+		table_alias TEXT,
+		query_mode TEXT NOT NULL DEFAULT 'table',
+		custom_sql TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
+		UNIQUE(datasource_id, table_name)
+	);
+	CREATE INDEX IF NOT EXISTS idx_datasource_tables_datasource ON datasource_tables(datasource_id);
+
+	CREATE TABLE IF NOT EXISTS field_mappings (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		datasource_table_id INTEGER NOT NULL,
+		field_name TEXT NOT NULL,
+		field_alias TEXT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
+		UNIQUE(datasource_table_id, field_name)
+	);
+	CREATE INDEX IF NOT EXISTS idx_field_mappings_table ON field_mappings(datasource_table_id);
+
+	CREATE TABLE IF NOT EXISTS user_datasource_permissions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		datasource_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
+		UNIQUE(user_id, datasource_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_user_datasource_user ON user_datasource_permissions(user_id);
+	CREATE INDEX IF NOT EXISTS idx_user_datasource_datasource ON user_datasource_permissions(datasource_id);
+
+	CREATE TABLE IF NOT EXISTS user_table_permissions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		datasource_table_id INTEGER NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
+		UNIQUE(user_id, datasource_table_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_user_table_user ON user_table_permissions(user_id);
+	CREATE INDEX IF NOT EXISTS idx_user_table_table ON user_table_permissions(datasource_table_id);
 	`
 
 	if _, err := db.Exec(createTableSQL); err != nil {
@@ -69,9 +137,54 @@ func (s *Store) Init(dbPath string) error {
 
 	s.db = db
 
+	// 执行数据库迁移(为已存在的users表添加新字段)
+	if err := s.migrateDatabase(); err != nil {
+		return fmt.Errorf("数据库迁移失败: %w", err)
+	}
+
 	// 初始化默认管理员账户
 	if err := s.initDefaultAdmin(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// migrateDatabase 执行数据库迁移
+func (s *Store) migrateDatabase() error {
+	// 检查users表是否有role字段
+	var hasRole bool
+	rows, err := s.db.Query("PRAGMA table_info(users)")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull, pk int
+		var dfltValue interface{}
+		if err := rows.Scan(&cid, &name, &typ, &notnull, &dfltValue, &pk); err != nil {
+			return err
+		}
+		if name == "role" {
+			hasRole = true
+			break
+		}
+	}
+
+	// 如果没有role字段,说明是旧数据库,需要迁移
+	if !hasRole {
+		// 为已存在的users表添加新字段
+		alterSQL := `
+		ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';
+		ALTER TABLE users ADD COLUMN display_name TEXT;
+		ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
+		`
+		if _, err := s.db.Exec(alterSQL); err != nil {
+			return fmt.Errorf("添加新字段失败: %w", err)
+		}
 	}
 
 	return nil
@@ -89,8 +202,8 @@ func (s *Store) initDefaultAdmin() error {
 		// 创建默认管理员 admin/admin123
 		hashedPassword := hashPassword("admin123")
 		_, err := s.db.Exec(
-			"INSERT INTO users (username, password) VALUES (?, ?)",
-			"admin", hashedPassword,
+			"INSERT INTO users (username, password, role, display_name, status) VALUES (?, ?, ?, ?, ?)",
+			"admin", hashedPassword, "admin", "系统管理员", "active",
 		)
 		if err != nil {
 			return fmt.Errorf("创建默认管理员失败: %w", err)
@@ -111,6 +224,11 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// GetDB 获取数据库连接(用于Repository)
+func (s *Store) GetDB() *sql.DB {
+	return s.db
+}
+
 // GetUserByUsername 根据用户名获取用户
 func (s *Store) GetUserByUsername(username string) (*User, error) {
 	s.mu.RLock()
@@ -118,9 +236,9 @@ func (s *Store) GetUserByUsername(username string) (*User, error) {
 
 	var user User
 	err := s.db.QueryRow(
-		"SELECT id, username, password, created_at, updated_at FROM users WHERE username = ?",
+		"SELECT id, username, password, role, display_name, status, created_at, updated_at FROM users WHERE username = ?",
 		username,
-	).Scan(&user.ID, &user.Username, &user.Password, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -139,9 +257,9 @@ func (s *Store) GetUserByID(id int64) (*User, error) {
 
 	var user User
 	err := s.db.QueryRow(
-		"SELECT id, username, password, created_at, updated_at FROM users WHERE id = ?",
+		"SELECT id, username, password, role, display_name, status, created_at, updated_at FROM users WHERE id = ?",
 		id,
-	).Scan(&user.ID, &user.Username, &user.Password, &user.CreatedAt, &user.UpdatedAt)
+	).Scan(&user.ID, &user.Username, &user.Password, &user.Role, &user.DisplayName, &user.Status, &user.CreatedAt, &user.UpdatedAt)
 
 	if err == sql.ErrNoRows {
 		return nil, nil

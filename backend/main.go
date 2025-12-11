@@ -6,6 +6,8 @@ import (
 	"mysql-sync-plugin/config"
 	"mysql-sync-plugin/handler"
 	"mysql-sync-plugin/logger"
+	"mysql-sync-plugin/repository"
+	"mysql-sync-plugin/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +31,16 @@ func main() {
 	mainLog := logger.New("main")
 	mainLog.Info("启动", "MySQL同步插件服务正在启动")
 
+	// 初始化Repository
+	authStore := auth.GetStore()
+	repo := repository.NewSQLiteRepository(authStore.GetDB())
+
+	// 初始化Service层
+	cryptoService := service.NewCryptoService(cfg.SecretKey)
+	userService := service.NewUserService(repo)
+	datasourceService := service.NewDatasourceService(repo, cryptoService)
+	permissionService := service.NewPermissionService(repo)
+
 	// 设置Gin模式
 	if !cfg.Debug {
 		gin.SetMode(gin.ReleaseMode)
@@ -40,8 +52,8 @@ func main() {
 	// CORS中间件(允许钉钉和飞书调用)
 	r.Use(func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Ding-Docs-Timestamp, Ding-Docs-Signature, X-Base-Request-Timestamp, X-Base-Request-Nonce")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Ding-Docs-Timestamp, Ding-Docs-Signature, X-Base-Request-Timestamp, X-Base-Request-Nonce")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
@@ -56,6 +68,10 @@ func main() {
 	feishuH := handler.NewFeishuHandler()
 	adminH := handler.NewAdminHandler()
 	authH := handler.NewAuthHandler()
+	userH := handler.NewUserHandler(userService)
+	datasourceH := handler.NewDatasourceHandler(datasourceService)
+	permissionH := handler.NewPermissionHandler(permissionService)
+	userAuthH := handler.NewUserAuthHandler(userService, permissionService, authStore)
 
 	// ==================== 公共接口 ====================
 
@@ -133,13 +149,73 @@ func main() {
 	})
 	adminAPI.Use(auth.AdminAuthMiddleware())
 	{
+		// 认证相关
 		adminAPI.POST("/logout", authH.Logout)
 		adminAPI.GET("/user/current", authH.GetCurrentUser)
 		adminAPI.POST("/user/password", authH.ChangePassword)
+
+		// 日志管理
 		adminAPI.GET("/logs", adminH.GetLogs)
 		adminAPI.GET("/logs/stats", adminH.GetLogStats)
 		adminAPI.POST("/logs/clean", adminH.CleanLogs)
+
+		// 系统信息
 		adminAPI.GET("/system/info", adminH.GetSystemInfo)
+
+		// 用户管理（需要管理员权限）
+		adminAPI.POST("/users", auth.RequireAdminRole(), userH.CreateUser)
+		adminAPI.GET("/users", auth.RequireAdminRole(), userH.ListUsers)
+		adminAPI.GET("/users/:id", auth.RequireAdminRole(), userH.GetUser)
+		adminAPI.PUT("/users/:id", auth.RequireAdminRole(), userH.UpdateUser)
+		adminAPI.DELETE("/users/:id", auth.RequireAdminRole(), userH.DeleteUser)
+		adminAPI.PUT("/users/:id/status", auth.RequireAdminRole(), userH.UpdateUserStatus)
+		adminAPI.PUT("/users/:id/password", auth.RequireAdminRole(), userH.ResetPassword)
+
+		// 数据源管理（需要管理员权限）
+		adminAPI.POST("/datasources", auth.RequireAdminRole(), datasourceH.CreateDatasource)
+		adminAPI.GET("/datasources", auth.RequireAdminRole(), datasourceH.ListDatasources)
+		adminAPI.GET("/datasources/:id", auth.RequireAdminRole(), datasourceH.GetDatasource)
+		adminAPI.PUT("/datasources/:id", auth.RequireAdminRole(), datasourceH.UpdateDatasource)
+		adminAPI.DELETE("/datasources/:id", auth.RequireAdminRole(), datasourceH.DeleteDatasource)
+		adminAPI.POST("/datasources/:id/test", auth.RequireAdminRole(), datasourceH.TestConnection)
+
+		// 数据源表管理（需要管理员权限）
+		adminAPI.POST("/datasources/:id/tables", auth.RequireAdminRole(), datasourceH.CreateDatasourceTable)
+		adminAPI.GET("/datasources/:id/tables", auth.RequireAdminRole(), datasourceH.ListDatasourceTables)
+		adminAPI.GET("/datasource-tables/:id", auth.RequireAdminRole(), datasourceH.GetDatasourceTable)
+		adminAPI.PUT("/datasource-tables/:id", auth.RequireAdminRole(), datasourceH.UpdateDatasourceTable)
+		adminAPI.DELETE("/datasource-tables/:id", auth.RequireAdminRole(), datasourceH.DeleteDatasourceTable)
+		adminAPI.GET("/datasource-tables/:id/fields", auth.RequireAdminRole(), datasourceH.GetFieldMappings)
+		adminAPI.POST("/datasource-tables/:id/fields", auth.RequireAdminRole(), datasourceH.UpdateFieldMappings)
+
+		// 权限管理（需要管理员权限）
+		adminAPI.POST("/users/:id/datasources", auth.RequireAdminRole(), permissionH.GrantDatasourcePermissions)
+		adminAPI.DELETE("/users/:id/datasources/:dsId", auth.RequireAdminRole(), permissionH.RevokeDatasourcePermission)
+		adminAPI.GET("/users/:id/datasources", auth.RequireAdminRole(), permissionH.ListUserDatasources)
+		adminAPI.GET("/users/:id/datasources-with-permission", auth.RequireAdminRole(), permissionH.ListAllDatasourcesWithPermission)
+
+		adminAPI.POST("/users/:id/tables", auth.RequireAdminRole(), permissionH.GrantTablePermissions)
+		adminAPI.DELETE("/users/:id/tables/:tableId", auth.RequireAdminRole(), permissionH.RevokeTablePermission)
+		adminAPI.GET("/users/:id/tables", auth.RequireAdminRole(), permissionH.ListUserTables)
+		adminAPI.GET("/users/:id/tables-with-permission", auth.RequireAdminRole(), permissionH.ListAllTablesWithPermission)
+	}
+
+	// ==================== 前端用户API ====================
+
+	// 前端用户认证API（无需登录）
+	userAuth := r.Group("/api/auth")
+	{
+		userAuth.POST("/login", userAuthH.Login)
+	}
+
+	// 前端用户API（需要登录）
+	userAPI := r.Group("/api/user")
+	userAPI.Use(auth.UserAuthMiddleware())
+	{
+		userAPI.POST("/logout", userAuthH.Logout)
+		userAPI.GET("/current", userAuthH.GetCurrentUser)
+		userAPI.GET("/datasources", userAuthH.GetUserDatasources)
+		userAPI.GET("/datasources/:id/tables", userAuthH.GetUserTables)
 	}
 
 	// 管理后台静态文件服务

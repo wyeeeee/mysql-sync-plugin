@@ -4,11 +4,14 @@ import "time"
 
 // User 用户模型
 type User struct {
-	ID        int64     `json:"id"`
-	Username  string    `json:"username"`
-	Password  string    `json:"-"` // 不输出到JSON
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          int64     `json:"id"`
+	Username    string    `json:"username"`
+	Password    string    `json:"-"` // 不输出到JSON
+	Role        string    `json:"role"`        // 'admin' 或 'user'
+	DisplayName string    `json:"displayName"` // 显示名称
+	Status      string    `json:"status"`      // 'active' 或 'disabled'
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 // Session 会话模型
