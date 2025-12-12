@@ -308,7 +308,7 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 		},
 	}
 
-	// 调用服务层
+	// 调用服务层获取记录
 	data, err := h.mysqlService.GetRecords(dingtalkReq)
 	duration := time.Since(start).Milliseconds()
 
@@ -321,8 +321,22 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 		return
 	}
 
-	// 转换为飞书格式
-	feishuData := models.ConvertToFeishuRecords(data)
+	// 获取表结构用于字段映射
+	metaReq := &models.SheetMetaRequest{
+		Params: string(configWithoutMappings),
+	}
+	metaData, err := h.mysqlService.GetSheetMeta(metaReq)
+	if err != nil {
+		h.log.LogWithRequest(logger.LevelError, "获取记录", "获取表结构失败: "+err.Error(), detail, ip, c.GetHeader("User-Agent"), duration)
+		c.JSON(http.StatusOK, models.FeishuResponse{
+			Code: models.FeishuCodeSystemError,
+			Msg:  models.NewFeishuErrorMsg("获取表结构失败: "+err.Error(), "Failed to get table meta: "+err.Error()),
+		})
+		return
+	}
+
+	// 转换为飞书格式，传入字段列表以保证顺序一致
+	feishuData := models.ConvertToFeishuRecords(data, metaData.Fields)
 
 	h.log.LogWithRequest(logger.LevelInfo, "获取记录",
 		fmt.Sprintf("成功获取 %d 条记录, 还有更多: %v", len(feishuData.Records), feishuData.HasMore),

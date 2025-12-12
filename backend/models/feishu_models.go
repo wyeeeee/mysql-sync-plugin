@@ -1,9 +1,6 @@
 package models
 
-import (
-	"fmt"
-	"sort"
-)
+import "fmt"
 
 // 飞书多维表格数据源接口模型定义
 
@@ -186,20 +183,10 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 
 	feishuFields := make([]FeishuField, len(dingtalk.Fields))
 	primaryFound := false // 飞书只允许一个主键字段
-	usedFieldIDs := make(map[string]bool) // 用于检测重复的 fieldID
 
 	for i, f := range dingtalk.Fields {
-		// 飞书要求 fieldID 只能包含英文、数字、下划线
-		fieldID := sanitizeFieldIDWithIndex(f.ID, i)
-
-		// 确保 fieldID 唯一，如果重复则添加索引后缀
-		baseFieldID := fieldID
-		suffix := 1
-		for usedFieldIDs[fieldID] {
-			fieldID = fmt.Sprintf("%s_%d", baseFieldID, suffix)
-			suffix++
-		}
-		usedFieldIDs[fieldID] = true
+		// 飞书要求 fieldID 只能包含英文、数字、下划线，使用数字索引确保唯一
+		fieldID := fmt.Sprintf("fid_%d", i)
 
 		// fieldName 使用别名（如果有的话）
 		fieldName := f.Name
@@ -236,35 +223,6 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 		TableName: dingtalk.SheetName,
 		Fields:    feishuFields,
 	}
-}
-
-// sanitizeFieldID 清理字段ID，确保只包含英文、数字、下划线
-func sanitizeFieldID(id string) string {
-	var result []rune
-	for _, r := range id {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
-			result = append(result, r)
-		}
-	}
-	if len(result) == 0 {
-		return "field_0"
-	}
-	return string(result)
-}
-
-// sanitizeFieldIDWithIndex 清理字段ID并添加索引，确保唯一性
-func sanitizeFieldIDWithIndex(id string, index int) string {
-	var result []rune
-	for _, r := range id {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
-			result = append(result, r)
-		}
-	}
-	if len(result) == 0 {
-		// 如果清理后为空，使用索引生成唯一ID
-		return fmt.Sprintf("field_%d", index)
-	}
-	return string(result)
 }
 
 // convertPropertyToFeishu 转换属性为飞书格式
@@ -336,18 +294,38 @@ func convertNumberFormatter(formatter string) string {
 }
 
 // ConvertToFeishuRecords 将钉钉记录响应转换为飞书格式
-func ConvertToFeishuRecords(dingtalk *RecordsResponse) *FeishuRecordsResponse {
+// fields 参数用于保证字段顺序和表结构一致
+func ConvertToFeishuRecords(dingtalk *RecordsResponse, fields []Field) *FeishuRecordsResponse {
+	// 建立原始字段 ID 到数字索引的映射（按字段顺序）
+	keyToIndex := make(map[string]int)
+	for i, f := range fields {
+		keyToIndex[f.ID] = i
+	}
+
+	// 转换记录
 	feishuRecords := make([]FeishuRecord, len(dingtalk.Records))
 	for i, r := range dingtalk.Records {
-		// 清理记录中的字段key，确保与表结构中的fieldID一致
 		sanitizedData := make(map[string]interface{})
 		for key, value := range r.Fields {
-			sanitizedKey := sanitizeFieldID(key)
-			sanitizedData[sanitizedKey] = value
+			index, ok := keyToIndex[key]
+			if !ok {
+				// 如果找不到映射，使用 key 本身的哈希
+				index = len(keyToIndex)
+				keyToIndex[key] = index
+			}
+			fieldID := fmt.Sprintf("fid_%d", index)
+			// 飞书要求值必须是正确的类型，nil 需要处理
+			sanitizedData[fieldID] = convertValueForFeishu(value)
+		}
+
+		// primaryID 使用记录 ID
+		primaryID := r.ID
+		if primaryID == "" {
+			primaryID = fmt.Sprintf("record_%d", i)
 		}
 
 		feishuRecords[i] = FeishuRecord{
-			PrimaryID: sanitizeFieldID(r.ID), // primaryID也需要清理
+			PrimaryID: primaryID,
 			Data:      sanitizedData,
 		}
 	}
@@ -356,6 +334,14 @@ func ConvertToFeishuRecords(dingtalk *RecordsResponse) *FeishuRecordsResponse {
 		HasMore:       dingtalk.HasMore,
 		Records:       feishuRecords,
 	}
+}
+
+// convertValueForFeishu 转换值为飞书兼容格式
+func convertValueForFeishu(value interface{}) interface{} {
+	if value == nil {
+		return ""
+	}
+	return value
 }
 
 // NewFeishuErrorMsg 创建飞书错误消息
