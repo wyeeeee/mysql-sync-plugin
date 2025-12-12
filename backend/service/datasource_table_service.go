@@ -208,13 +208,22 @@ func (s *DatasourceService) BatchCreateDatasourceTables(datasourceID int64, req 
 		return nil, fmt.Errorf("数据源不存在")
 	}
 
+	// 验证查询模式
+	if req.QueryMode != "table" && req.QueryMode != "sql" {
+		return nil, fmt.Errorf("无效的查询模式: %s", req.QueryMode)
+	}
+
 	// 批量创建表配置
-	tables := make([]*models.DatasourceTable, 0, len(req.Tables))
-	for _, tableReq := range req.Tables {
-		table, err := s.CreateDatasourceTable(datasourceID, &tableReq)
+	tables := make([]*models.DatasourceTable, 0, len(req.TableNames))
+	for _, tableName := range req.TableNames {
+		tableReq := &models.CreateDatasourceTableRequest{
+			TableName: tableName,
+			QueryMode: req.QueryMode,
+		}
+		table, err := s.CreateDatasourceTable(datasourceID, tableReq)
 		if err != nil {
 			// 记录错误但继续处理其他表
-			fmt.Printf("创建表配置失败 [%s]: %v\n", tableReq.TableName, err)
+			fmt.Printf("创建表配置失败 [%s]: %v\n", tableName, err)
 			continue
 		}
 		tables = append(tables, table)

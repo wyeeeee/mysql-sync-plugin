@@ -66,9 +66,9 @@ func main() {
 		c.Next()
 	})
 
-	// 创建处理器
-	h := handler.NewHandler()
-	feishuH := handler.NewFeishuHandler()
+	// 创建处理器（使用新版本构造函数，支持数据源方案）
+	h := handler.NewHandlerWithServices(datasourceService, repo)
+	feishuH := handler.NewFeishuHandlerWithServices(datasourceService, repo)
 	adminH := handler.NewAdminHandler()
 	authH := handler.NewAuthHandler()
 	userH := handler.NewUserHandler(userService)

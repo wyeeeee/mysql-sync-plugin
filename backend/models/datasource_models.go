@@ -92,5 +92,6 @@ type DatasourceWithTables struct {
 
 // BatchCreateDatasourceTablesRequest 批量创建数据源表配置请求
 type BatchCreateDatasourceTablesRequest struct {
-	Tables []CreateDatasourceTableRequest `json:"tables" binding:"required"`
+	TableNames []string `json:"tableNames" binding:"required"` // 表名列表
+	QueryMode  string   `json:"queryMode" binding:"required"`  // 查询模式: "table" 或 "sql"
 }
