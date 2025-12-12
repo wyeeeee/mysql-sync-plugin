@@ -522,7 +522,7 @@ func (r *SQLiteRepository) GrantDatasourcePermission(userID, datasourceID int64)
 	defer r.mu.Unlock()
 
 	_, err := r.db.Exec(
-		"INSERT OR IGNORE INTO user_datasource_permissions (user_id, datasource_id, created_at) VALUES (?, ?, ?)",
+		"INSERT IGNORE INTO user_datasource_permissions (user_id, datasource_id, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE created_at=created_at",
 		userID, datasourceID, time.Now(),
 	)
 	if err != nil {
@@ -600,7 +600,7 @@ func (r *SQLiteRepository) GrantTablePermission(userID, tableID int64) error {
 	defer r.mu.Unlock()
 
 	_, err := r.db.Exec(
-		"INSERT OR IGNORE INTO user_table_permissions (user_id, datasource_table_id, created_at) VALUES (?, ?, ?)",
+		"INSERT IGNORE INTO user_table_permissions (user_id, datasource_table_id, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE created_at=created_at",
 		userID, tableID, time.Now(),
 	)
 	if err != nil {
@@ -679,7 +679,7 @@ func (r *SQLiteRepository) BatchGrantDatasourcePermissions(userID int64, datasou
 
 	for _, dsID := range datasourceIDs {
 		_, err := r.db.Exec(
-			"INSERT OR IGNORE INTO user_datasource_permissions (user_id, datasource_id, created_at) VALUES (?, ?, ?)",
+			"INSERT IGNORE INTO user_datasource_permissions (user_id, datasource_id, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE created_at=created_at",
 			userID, dsID, time.Now(),
 		)
 		if err != nil {
@@ -715,7 +715,7 @@ func (r *SQLiteRepository) BatchGrantTablePermissions(userID int64, tableIDs []i
 
 	for _, tableID := range tableIDs {
 		_, err := r.db.Exec(
-			"INSERT OR IGNORE INTO user_table_permissions (user_id, datasource_table_id, created_at) VALUES (?, ?, ?)",
+			"INSERT IGNORE INTO user_table_permissions (user_id, datasource_table_id, created_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE created_at=created_at",
 			userID, tableID, time.Now(),
 		)
 		if err != nil {

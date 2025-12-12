@@ -1,5 +1,10 @@
 package models
 
+import (
+	"fmt"
+	"sort"
+)
+
 // 飞书多维表格数据源接口模型定义
 
 // 飞书字段类型枚举
@@ -181,10 +186,20 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 
 	feishuFields := make([]FeishuField, len(dingtalk.Fields))
 	primaryFound := false // 飞书只允许一个主键字段
+	usedFieldIDs := make(map[string]bool) // 用于检测重复的 fieldID
 
 	for i, f := range dingtalk.Fields {
 		// 飞书要求 fieldID 只能包含英文、数字、下划线
-		fieldID := sanitizeFieldID(f.ID)
+		fieldID := sanitizeFieldIDWithIndex(f.ID, i)
+
+		// 确保 fieldID 唯一，如果重复则添加索引后缀
+		baseFieldID := fieldID
+		suffix := 1
+		for usedFieldIDs[fieldID] {
+			fieldID = fmt.Sprintf("%s_%d", baseFieldID, suffix)
+			suffix++
+		}
+		usedFieldIDs[fieldID] = true
 
 		// fieldName 使用别名（如果有的话）
 		fieldName := f.Name
@@ -233,6 +248,21 @@ func sanitizeFieldID(id string) string {
 	}
 	if len(result) == 0 {
 		return "field_0"
+	}
+	return string(result)
+}
+
+// sanitizeFieldIDWithIndex 清理字段ID并添加索引，确保唯一性
+func sanitizeFieldIDWithIndex(id string, index int) string {
+	var result []rune
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			result = append(result, r)
+		}
+	}
+	if len(result) == 0 {
+		// 如果清理后为空，使用索引生成唯一ID
+		return fmt.Sprintf("field_%d", index)
 	}
 	return string(result)
 }
