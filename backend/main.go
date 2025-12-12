@@ -16,14 +16,17 @@ func main() {
 	// 加载配置
 	cfg := config.Load()
 
+	// 获取MySQL连接字符串
+	dsn := cfg.GetDSN()
+
 	// 初始化日志存储
-	if err := logger.GetStore().Init(cfg.DBPath); err != nil {
+	if err := logger.GetStore().Init(dsn); err != nil {
 		log.Fatalf("初始化日志数据库失败: %v", err)
 	}
 	defer logger.GetStore().Close()
 
 	// 初始化认证存储
-	if err := auth.GetStore().Init(cfg.DBPath); err != nil {
+	if err := auth.GetStore().Init(dsn); err != nil {
 		log.Fatalf("初始化认证数据库失败: %v", err)
 	}
 	defer auth.GetStore().Close()
@@ -95,12 +98,21 @@ func main() {
 		// 钉钉API
 		dingtalkAPI := dingtalkGroup.Group("/api")
 		{
+			// 用户认证API（无需登录）
+			dingtalkAPI.POST("/auth/login", userAuthH.Login)
+			dingtalkAPI.POST("/auth/logout", userAuthH.Logout)
+			dingtalkAPI.GET("/auth/current", userAuthH.GetCurrentUser)
+
+			// 用户数据源和表查询API（需要认证）
+			dingtalkAPI.GET("/user/datasources", auth.UserAuthMiddleware(), userAuthH.GetUserDatasources)
+			dingtalkAPI.GET("/user/datasources/:id/tables", auth.UserAuthMiddleware(), userAuthH.GetUserTables)
+
 			// 前端配置页面使用的公共API
 			dingtalkAPI.POST("/databases", h.GetDatabases)
 			dingtalkAPI.POST("/tables", h.GetTables)
 			dingtalkAPI.POST("/fields", h.GetFields)
 			dingtalkAPI.POST("/preview_sql", h.PreviewSQL)
-			// AI表格服务端调用的API
+			// AI表格服务端调用的API（无需认证）
 			dingtalkAPI.POST("/sheet_meta", h.SheetMeta)
 			dingtalkAPI.POST("/records", h.Records)
 		}
@@ -120,12 +132,21 @@ func main() {
 		// 飞书API
 		feishuAPI := feishuGroup.Group("/api")
 		{
+			// 用户认证API（无需登录）
+			feishuAPI.POST("/auth/login", userAuthH.Login)
+			feishuAPI.POST("/auth/logout", userAuthH.Logout)
+			feishuAPI.GET("/auth/current", userAuthH.GetCurrentUser)
+
+			// 用户数据源和表查询API（需要认证）
+			feishuAPI.GET("/user/datasources", auth.UserAuthMiddleware(), userAuthH.GetUserDatasources)
+			feishuAPI.GET("/user/datasources/:id/tables", auth.UserAuthMiddleware(), userAuthH.GetUserTables)
+
 			// 前端配置页面使用的公共API
 			feishuAPI.POST("/databases", h.GetDatabases)
 			feishuAPI.POST("/tables", h.GetTables)
 			feishuAPI.POST("/fields", h.GetFields)
 			feishuAPI.POST("/preview_sql", h.PreviewSQL)
-			// 多维表格服务端调用的API
+			// 多维表格服务端调用的API（无需认证）
 			feishuAPI.POST("/table_meta", feishuH.TableMeta)
 			feishuAPI.POST("/records", feishuH.Records)
 		}
@@ -181,6 +202,7 @@ func main() {
 
 		// 数据源表管理（需要管理员权限）
 		adminAPI.POST("/datasources/:id/tables", auth.RequireAdminRole(), datasourceH.CreateDatasourceTable)
+		adminAPI.POST("/datasources/:id/tables/batch", auth.RequireAdminRole(), datasourceH.BatchCreateDatasourceTables)
 		adminAPI.GET("/datasources/:id/tables", auth.RequireAdminRole(), datasourceH.ListDatasourceTables)
 		adminAPI.GET("/datasource-tables/:id", auth.RequireAdminRole(), datasourceH.GetDatasourceTable)
 		adminAPI.PUT("/datasource-tables/:id", auth.RequireAdminRole(), datasourceH.UpdateDatasourceTable)

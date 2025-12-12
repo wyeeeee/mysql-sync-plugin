@@ -196,3 +196,29 @@ func (s *DatasourceService) DeleteDatasourceTable(id int64) error {
 
 	return nil
 }
+
+// BatchCreateDatasourceTables 批量创建数据源表配置
+func (s *DatasourceService) BatchCreateDatasourceTables(datasourceID int64, req *models.BatchCreateDatasourceTablesRequest) ([]*models.DatasourceTable, error) {
+	// 检查数据源是否存在
+	ds, err := s.repo.GetDatasourceByID(datasourceID)
+	if err != nil {
+		return nil, fmt.Errorf("获取数据源失败: %w", err)
+	}
+	if ds == nil {
+		return nil, fmt.Errorf("数据源不存在")
+	}
+
+	// 批量创建表配置
+	tables := make([]*models.DatasourceTable, 0, len(req.Tables))
+	for _, tableReq := range req.Tables {
+		table, err := s.CreateDatasourceTable(datasourceID, &tableReq)
+		if err != nil {
+			// 记录错误但继续处理其他表
+			fmt.Printf("创建表配置失败 [%s]: %v\n", tableReq.TableName, err)
+			continue
+		}
+		tables = append(tables, table)
+	}
+
+	return tables, nil
+}

@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // Store 认证存储
@@ -32,159 +32,146 @@ func GetStore() *Store {
 }
 
 // Init 初始化数据库
-func (s *Store) Init(dbPath string) error {
+func (s *Store) Init(dsn string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %w", err)
 	}
 
+	// 测试连接
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return fmt.Errorf("连接数据库失败: %w", err)
+	}
+
 	// 创建用户表
-	createTableSQL := `
+	createUsersSQL := `
 	CREATE TABLE IF NOT EXISTS users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT UNIQUE NOT NULL,
-		password TEXT NOT NULL,
-		role TEXT NOT NULL DEFAULT 'user',
-		display_name TEXT,
-		status TEXT NOT NULL DEFAULT 'active',
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		username VARCHAR(255) UNIQUE NOT NULL,
+		password VARCHAR(255) NOT NULL,
+		role VARCHAR(50) NOT NULL DEFAULT 'user',
+		display_name VARCHAR(255),
+		status VARCHAR(50) NOT NULL DEFAULT 'active',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE TABLE IF NOT EXISTS sessions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER NOT NULL,
-		token TEXT UNIQUE NOT NULL,
-		expires_at DATETIME NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES users(id)
-	);
-	CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
-	CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
-
-	CREATE TABLE IF NOT EXISTS datasources (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		description TEXT,
-		host TEXT NOT NULL,
-		port INTEGER NOT NULL,
-		database_name TEXT NOT NULL,
-		username TEXT NOT NULL,
-		password TEXT NOT NULL,
-		created_by INTEGER NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (created_by) REFERENCES users(id)
-	);
-	CREATE INDEX IF NOT EXISTS idx_datasources_created_by ON datasources(created_by);
-
-	CREATE TABLE IF NOT EXISTS datasource_tables (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		datasource_id INTEGER NOT NULL,
-		table_name TEXT NOT NULL,
-		table_alias TEXT,
-		query_mode TEXT NOT NULL DEFAULT 'table',
-		custom_sql TEXT,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
-		UNIQUE(datasource_id, table_name)
-	);
-	CREATE INDEX IF NOT EXISTS idx_datasource_tables_datasource ON datasource_tables(datasource_id);
-
-	CREATE TABLE IF NOT EXISTS field_mappings (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		datasource_table_id INTEGER NOT NULL,
-		field_name TEXT NOT NULL,
-		field_alias TEXT NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
-		UNIQUE(datasource_table_id, field_name)
-	);
-	CREATE INDEX IF NOT EXISTS idx_field_mappings_table ON field_mappings(datasource_table_id);
-
-	CREATE TABLE IF NOT EXISTS user_datasource_permissions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER NOT NULL,
-		datasource_id INTEGER NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
-		UNIQUE(user_id, datasource_id)
-	);
-	CREATE INDEX IF NOT EXISTS idx_user_datasource_user ON user_datasource_permissions(user_id);
-	CREATE INDEX IF NOT EXISTS idx_user_datasource_datasource ON user_datasource_permissions(datasource_id);
-
-	CREATE TABLE IF NOT EXISTS user_table_permissions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER NOT NULL,
-		datasource_table_id INTEGER NOT NULL,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
-		UNIQUE(user_id, datasource_table_id)
-	);
-	CREATE INDEX IF NOT EXISTS idx_user_table_user ON user_table_permissions(user_id);
-	CREATE INDEX IF NOT EXISTS idx_user_table_table ON user_table_permissions(datasource_table_id);
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`
 
-	if _, err := db.Exec(createTableSQL); err != nil {
-		db.Close()
-		return fmt.Errorf("创建表失败: %w", err)
+	createSessionsSQL := `
+	CREATE TABLE IF NOT EXISTS sessions (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		user_id BIGINT NOT NULL,
+		token VARCHAR(255) UNIQUE NOT NULL,
+		expires_at DATETIME NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		INDEX idx_sessions_token (token),
+		INDEX idx_sessions_expires (expires_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	createDatasourcesSQL := `
+	CREATE TABLE IF NOT EXISTS datasources (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		name VARCHAR(255) NOT NULL,
+		description TEXT,
+		host VARCHAR(255) NOT NULL,
+		port INT NOT NULL,
+		database_name VARCHAR(255) NOT NULL,
+		username VARCHAR(255) NOT NULL,
+		password TEXT NOT NULL,
+		created_by BIGINT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		FOREIGN KEY (created_by) REFERENCES users(id),
+		INDEX idx_datasources_created_by (created_by)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	createDatasourceTablesSQL := `
+	CREATE TABLE IF NOT EXISTS datasource_tables (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		datasource_id BIGINT NOT NULL,
+		table_name VARCHAR(255) NOT NULL,
+		table_alias VARCHAR(255),
+		query_mode VARCHAR(50) NOT NULL DEFAULT 'table',
+		custom_sql TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
+		UNIQUE KEY unique_datasource_table (datasource_id, table_name),
+		INDEX idx_datasource_tables_datasource (datasource_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	createFieldMappingsSQL := `
+	CREATE TABLE IF NOT EXISTS field_mappings (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		datasource_table_id BIGINT NOT NULL,
+		field_name VARCHAR(255) NOT NULL,
+		field_alias VARCHAR(255) NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
+		UNIQUE KEY unique_table_field (datasource_table_id, field_name),
+		INDEX idx_field_mappings_table (datasource_table_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	createUserDatasourcePermissionsSQL := `
+	CREATE TABLE IF NOT EXISTS user_datasource_permissions (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		user_id BIGINT NOT NULL,
+		datasource_id BIGINT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
+		UNIQUE KEY unique_user_datasource (user_id, datasource_id),
+		INDEX idx_user_datasource_user (user_id),
+		INDEX idx_user_datasource_datasource (datasource_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	createUserTablePermissionsSQL := `
+	CREATE TABLE IF NOT EXISTS user_table_permissions (
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		user_id BIGINT NOT NULL,
+		datasource_table_id BIGINT NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+		FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
+		UNIQUE KEY unique_user_table (user_id, datasource_table_id),
+		INDEX idx_user_table_user (user_id),
+		INDEX idx_user_table_table (datasource_table_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+	`
+
+	// 执行所有建表语句
+	tables := []string{
+		createUsersSQL,
+		createSessionsSQL,
+		createDatasourcesSQL,
+		createDatasourceTablesSQL,
+		createFieldMappingsSQL,
+		createUserDatasourcePermissionsSQL,
+		createUserTablePermissionsSQL,
+	}
+
+	for _, sql := range tables {
+		if _, err := db.Exec(sql); err != nil {
+			db.Close()
+			return fmt.Errorf("创建表失败: %w", err)
+		}
 	}
 
 	s.db = db
 
-	// 执行数据库迁移(为已存在的users表添加新字段)
-	if err := s.migrateDatabase(); err != nil {
-		return fmt.Errorf("数据库迁移失败: %w", err)
-	}
-
 	// 初始化默认管理员账户
 	if err := s.initDefaultAdmin(); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// migrateDatabase 执行数据库迁移
-func (s *Store) migrateDatabase() error {
-	// 检查users表是否有role字段
-	var hasRole bool
-	rows, err := s.db.Query("PRAGMA table_info(users)")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var cid int
-		var name, typ string
-		var notnull, pk int
-		var dfltValue interface{}
-		if err := rows.Scan(&cid, &name, &typ, &notnull, &dfltValue, &pk); err != nil {
-			return err
-		}
-		if name == "role" {
-			hasRole = true
-			break
-		}
-	}
-
-	// 如果没有role字段,说明是旧数据库,需要迁移
-	if !hasRole {
-		// 为已存在的users表添加新字段
-		alterSQL := `
-		ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin';
-		ALTER TABLE users ADD COLUMN display_name TEXT;
-		ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active';
-		`
-		if _, err := s.db.Exec(alterSQL); err != nil {
-			return fmt.Errorf("添加新字段失败: %w", err)
-		}
 	}
 
 	return nil

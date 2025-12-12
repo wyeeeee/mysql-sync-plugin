@@ -167,3 +167,41 @@ func (h *DatasourceHandler) DeleteDatasourceTable(c *gin.Context) {
 		Msg:  "删除成功",
 	})
 }
+
+// BatchCreateDatasourceTables 批量创建数据源表配置
+func (h *DatasourceHandler) BatchCreateDatasourceTables(c *gin.Context) {
+	idStr := c.Param("id")
+	datasourceID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "无效的数据源ID",
+		})
+		return
+	}
+
+	var req models.BatchCreateDatasourceTablesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeParamError,
+			Msg:  "参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	tables, err := h.datasourceService.BatchCreateDatasourceTables(datasourceID, &req)
+	if err != nil {
+		h.log.Errorf("批量创建表配置", "批量创建表配置失败: %v", err)
+		c.JSON(http.StatusOK, models.Response{
+			Code: models.CodeThirdPartyError,
+			Msg:  "批量创建表配置失败: " + err.Error(),
+		})
+		return
+	}
+
+	h.log.Infof("批量创建表配置", "成功创建 %d 个表配置", len(tables))
+	c.JSON(http.StatusOK, models.Response{
+		Code: models.CodeSuccess,
+		Data: tables,
+	})
+}

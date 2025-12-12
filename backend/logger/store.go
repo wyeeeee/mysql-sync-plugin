@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // Store 日志存储
@@ -30,32 +30,38 @@ func GetStore() *Store {
 }
 
 // Init 初始化数据库
-func (s *Store) Init(dbPath string) error {
+func (s *Store) Init(dsn string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return fmt.Errorf("打开数据库失败: %w", err)
+	}
+
+	// 测试连接
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return fmt.Errorf("连接数据库失败: %w", err)
 	}
 
 	// 创建日志表
 	createTableSQL := `
 	CREATE TABLE IF NOT EXISTS logs (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		level TEXT NOT NULL,
-		module TEXT NOT NULL,
-		action TEXT NOT NULL,
+		id BIGINT PRIMARY KEY AUTO_INCREMENT,
+		level VARCHAR(50) NOT NULL,
+		module VARCHAR(255) NOT NULL,
+		action VARCHAR(255) NOT NULL,
 		message TEXT NOT NULL,
 		detail TEXT,
-		ip TEXT,
+		ip VARCHAR(255),
 		user_agent TEXT,
-		duration INTEGER,
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);
-	CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level);
-	CREATE INDEX IF NOT EXISTS idx_logs_module ON logs(module);
-	CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at);
+		duration BIGINT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		INDEX idx_logs_level (level),
+		INDEX idx_logs_module (module),
+		INDEX idx_logs_created_at (created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`
 
 	if _, err := db.Exec(createTableSQL); err != nil {

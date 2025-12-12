@@ -89,3 +89,8 @@ type DatasourceWithTables struct {
 	Datasource
 	Tables []DatasourceTable `json:"tables"`
 }
+
+// BatchCreateDatasourceTablesRequest 批量创建数据源表配置请求
+type BatchCreateDatasourceTablesRequest struct {
+	Tables []CreateDatasourceTableRequest `json:"tables" binding:"required"`
+}

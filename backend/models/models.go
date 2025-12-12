@@ -32,15 +32,24 @@ type FieldMapping struct {
 
 // MySQLConfig MySQL连接配置(从params中解析)
 type MySQLConfig struct {
-	Host          string         `json:"host"`
-	Port          int            `json:"port"`
-	Database      string         `json:"database"`
-	Username      string         `json:"username"`
-	Password      string         `json:"password"`
+	// 新格式:通过tableId查询配置
+	TableID int64 `json:"tableId,omitempty"`
+
+	// 老格式:直接提供完整配置
+	Host          string         `json:"host,omitempty"`
+	Port          int            `json:"port,omitempty"`
+	Database      string         `json:"database,omitempty"`
+	Username      string         `json:"username,omitempty"`
+	Password      string         `json:"password,omitempty"`
 	Table         string         `json:"table,omitempty"`
 	QueryMode     string         `json:"queryMode,omitempty"`     // 取数模式: "table" 或 "sql"
 	CustomSQL     string         `json:"customSQL,omitempty"`     // 自定义SQL语句
 	FieldMappings []FieldMapping `json:"fieldMappings,omitempty"` // 字段映射配置
+}
+
+// IsNewFormat 判断是否为新格式(通过tableId)
+func (c *MySQLConfig) IsNewFormat() bool {
+	return c.TableID > 0
 }
 
 // Response 通用响应结构
