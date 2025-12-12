@@ -419,7 +419,8 @@ func (s *MySQLService) convertValue(value interface{}, fieldType string) interfa
 // toNumber 将值转换为数字类型
 func (s *MySQLService) toNumber(value interface{}) interface{} {
 	if value == nil {
-		return nil
+		// 修复：飞书数字字段不接受 nil，返回 0
+		return 0
 	}
 
 	switch v := value.(type) {
@@ -436,30 +437,36 @@ func (s *MySQLService) toNumber(value interface{}) interface{} {
 	case []byte:
 		strVal := string(v)
 		if strVal == "" {
-			return nil
+			// 修复：空字符串返回 0
+			return 0
 		}
 		if f, err := strconv.ParseFloat(strVal, 64); err == nil {
 			return f
 		}
-		return nil
+		// 修复：解析失败返回 0
+		return 0
 	case string:
 		if v == "" {
-			return nil
+			// 修复：空字符串返回 0
+			return 0
 		}
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			return f
 		}
-		return nil
+		// 修复：解析失败返回 0
+		return 0
 	default:
 		// 尝试转换任何其他类型
 		strVal := fmt.Sprintf("%v", v)
 		if strVal == "" {
-			return nil
+			// 修复：空字符串返回 0
+			return 0
 		}
 		if f, err := strconv.ParseFloat(strVal, 64); err == nil {
 			return f
 		}
-		return nil
+		// 修复：解析失败返回 0
+		return 0
 	}
 }
 

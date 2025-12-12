@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getToken } from './auth';
 
 // 钉钉前端使用 /dingtalk 基础路径
 const API_BASE_URL = '/dingtalk';
@@ -11,6 +12,20 @@ const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// 请求拦截器：自动添加 token
+api.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
 
 // 字段映射配置
 export interface FieldMapping {

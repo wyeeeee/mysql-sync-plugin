@@ -135,6 +135,13 @@ export const datasourceApi = {
       fieldMappings?: Array<{ mysqlField: string; aliasField: string }>
     }
   ) => api.post(`/datasources/${datasourceId}/tables`, data),
+  batchCreateTables: (
+    datasourceId: number,
+    data: {
+      tableNames: string[]
+      queryMode: string
+    }
+  ) => api.post(`/datasources/${datasourceId}/tables/batch`, data),
   listTables: (datasourceId: number) =>
     api.get(`/datasources/${datasourceId}/tables`),
   getTable: (id: number) => api.get(`/datasource-tables/${id}`),

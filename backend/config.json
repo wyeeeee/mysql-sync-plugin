@@ -1,0 +1,12 @@
+{
+  "serverPort": "7138",
+  "secretKey": "your-secret-key-here",
+  "mysql": {
+    "host": "localhost",
+    "port": "3306",
+    "database": "mysql_sync_plugin",
+    "username": "root",
+    "password": "请修改为你的MySQL密码"
+  },
+  "debug": true
+}

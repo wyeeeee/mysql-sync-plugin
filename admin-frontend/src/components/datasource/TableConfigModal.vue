@@ -276,16 +276,21 @@ const handleTableModalOk = async () => {
     }
   }
 
+  const hideLoading = message.loading('正在创建表配置...', 0)
   try {
     if (tableFormData.value.queryMode === 'table') {
-      for (const tableName of selectedTableNames.value) {
-        await datasourceApi.createTable(props.datasource.id, {
-          tableName,
-          tableAlias: tableName,
-          queryMode: 'table'
-        })
+      // 使用批量创建接口
+      const res = await datasourceApi.batchCreateTables(props.datasource.id, {
+        tableNames: selectedTableNames.value,
+        queryMode: 'table'
+      })
+      hideLoading()
+      if (res.code === 0) {
+        message.success(`成功添加 ${selectedTableNames.value.length} 个表配置`)
+      } else {
+        message.error(res.msg || '批量创建失败')
+        return
       }
-      message.success(`成功添加 ${selectedTableNames.value.length} 个表配置`)
     } else {
       const res = await datasourceApi.createTable(props.datasource.id, {
         tableName: tableFormData.value.tableName,
@@ -293,6 +298,7 @@ const handleTableModalOk = async () => {
         queryMode: 'sql',
         customSql: tableFormData.value.customSql
       })
+      hideLoading()
       if (res.code === 0) {
         message.success('创建成功')
       } else {
@@ -303,6 +309,7 @@ const handleTableModalOk = async () => {
     tableModalVisible.value = false
     await loadTables()
   } catch (error) {
+    hideLoading()
     message.error('操作失败')
   }
 }

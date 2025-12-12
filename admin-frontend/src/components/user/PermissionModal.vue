@@ -110,6 +110,8 @@ const currentDatasourceId = ref<number>()
 const tablesWithPermission = ref<any[]>([])
 const selectedTables = ref<number[]>([])
 let isUpdatingPermission = false
+let datasourcePermissionTimer: number | null = null
+let tablePermissionTimer: number | null = null
 
 watch(() => props.open, async (val) => {
   visible.value = val
@@ -152,31 +154,50 @@ const loadDatasourcesWithPermission = async () => {
 }
 
 const handleDatasourcePermissionChange = async (checkedValues: number[]) => {
-  if (!props.user) return
+  if (!props.user || isUpdatingPermission) return
 
-  const userId = props.user.id
-  const oldValues = datasourcesWithPermission.value
-    .filter((ds: any) => ds.hasPermission)
-    .map((ds: any) => ds.id)
-
-  const added = checkedValues.filter((id) => !oldValues.includes(id))
-  const removed = oldValues.filter((id) => !checkedValues.includes(id))
-
-  try {
-    if (added.length > 0) {
-      await permissionApi.grantDatasourcePermissions(userId, added)
-    }
-
-    if (removed.length > 0) {
-      await permissionApi.revokeDatasourcePermissions(userId, removed)
-    }
-
-    message.success('权限更新成功')
-    await loadDatasourcesWithPermission()
-  } catch (error) {
-    message.error('权限更新失败')
-    await loadDatasourcesWithPermission()
+  // 清除之前的定时器
+  if (datasourcePermissionTimer !== null) {
+    clearTimeout(datasourcePermissionTimer)
   }
+
+  // 使用防抖,500ms后执行批量更新
+  datasourcePermissionTimer = window.setTimeout(async () => {
+    isUpdatingPermission = true
+    const hideLoading = message.loading('正在更新数据源权限...', 0)
+
+    try {
+      const userId = props.user.id
+      const oldValues = datasourcesWithPermission.value
+        .filter((ds: any) => ds.hasPermission)
+        .map((ds: any) => ds.id)
+
+      const added = checkedValues.filter((id) => !oldValues.includes(id))
+      const removed = oldValues.filter((id) => !checkedValues.includes(id))
+
+      // 使用批量接口一次性处理所有变更
+      if (added.length > 0) {
+        await permissionApi.grantDatasourcePermissions(userId, added)
+      }
+
+      if (removed.length > 0) {
+        await permissionApi.revokeDatasourcePermissions(userId, removed)
+      }
+
+      hideLoading()
+      if (added.length > 0 || removed.length > 0) {
+        message.success('数据源权限更新成功')
+        await loadDatasourcesWithPermission()
+      }
+    } catch (error) {
+      hideLoading()
+      message.error('数据源权限更新失败')
+      await loadDatasourcesWithPermission()
+    } finally {
+      isUpdatingPermission = false
+      datasourcePermissionTimer = null
+    }
+  }, 500)
 }
 
 const loadTablesWithPermission = async () => {
@@ -240,33 +261,47 @@ const handleSelectAllTables = async (e: any) => {
 const handleTablePermissionChange = async (checkedValues: number[]) => {
   if (isUpdatingPermission || !props.user) return
 
-  isUpdatingPermission = true
-  try {
-    const userId = props.user.id
-    const oldValues = tablesWithPermission.value
-      .filter((table: any) => table.hasPermission)
-      .map((table: any) => table.id)
-
-    const added = checkedValues.filter((id) => !oldValues.includes(id))
-    const removed = oldValues.filter((id) => !checkedValues.includes(id))
-
-    if (added.length > 0) {
-      await permissionApi.grantTablePermissions(userId, added)
-    }
-
-    if (removed.length > 0) {
-      await permissionApi.revokeTablePermissions(userId, removed)
-    }
-
-    if (added.length > 0 || removed.length > 0) {
-      message.success('权限更新成功')
-      await loadTablesWithPermission()
-    }
-  } catch (error) {
-    message.error('权限更新失败')
-    await loadTablesWithPermission()
-  } finally {
-    isUpdatingPermission = false
+  // 清除之前的定时器
+  if (tablePermissionTimer !== null) {
+    clearTimeout(tablePermissionTimer)
   }
+
+  // 使用防抖,500ms后执行批量更新
+  tablePermissionTimer = window.setTimeout(async () => {
+    isUpdatingPermission = true
+    const hideLoading = message.loading('正在更新表权限...', 0)
+
+    try {
+      const userId = props.user.id
+      const oldValues = tablesWithPermission.value
+        .filter((table: any) => table.hasPermission)
+        .map((table: any) => table.id)
+
+      const added = checkedValues.filter((id) => !oldValues.includes(id))
+      const removed = oldValues.filter((id) => !checkedValues.includes(id))
+
+      // 使用批量接口一次性处理所有变更
+      if (added.length > 0) {
+        await permissionApi.grantTablePermissions(userId, added)
+      }
+
+      if (removed.length > 0) {
+        await permissionApi.revokeTablePermissions(userId, removed)
+      }
+
+      hideLoading()
+      if (added.length > 0 || removed.length > 0) {
+        message.success('表权限更新成功')
+        await loadTablesWithPermission()
+      }
+    } catch (error) {
+      hideLoading()
+      message.error('表权限更新失败')
+      await loadTablesWithPermission()
+    } finally {
+      isUpdatingPermission = false
+      tablePermissionTimer = null
+    }
+  }, 500)
 }
 </script>
