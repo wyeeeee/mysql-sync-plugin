@@ -9,13 +9,13 @@ import (
 // 嵌入前端静态文件
 // 构建前需要先将前端编译产物复制到对应目录
 
-//go:embed admin/*
+//go:embed all:admin
 var adminFS embed.FS
 
-//go:embed dingtalk/*
+//go:embed all:dingtalk
 var dingtalkFS embed.FS
 
-//go:embed feishu/*
+//go:embed all:feishu
 var feishuFS embed.FS
 
 // GetAdminFS 获取管理后台静态文件系统
