@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS datasources (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据源配置表';
 
 -- 数据源表配置
+-- 同一张表可以添加多次，创建不同的字段映射配置
 CREATE TABLE IF NOT EXISTS datasource_tables (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     datasource_id BIGINT NOT NULL COMMENT '数据源ID',
@@ -63,7 +64,6 @@ CREATE TABLE IF NOT EXISTS datasource_tables (
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
-    UNIQUE KEY uk_datasource_table (datasource_id, table_name),
     INDEX idx_datasource_id (datasource_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='数据源表配置';
 

@@ -92,6 +92,7 @@ func (s *Store) Init(dsn string) error {
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`
 
+	// 同一张表可以添加多次，创建不同的字段映射配置，因此不设置唯一性约束
 	createDatasourceTablesSQL := `
 	CREATE TABLE IF NOT EXISTS datasource_tables (
 		id BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -103,7 +104,6 @@ func (s *Store) Init(dsn string) error {
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 		FOREIGN KEY (datasource_id) REFERENCES datasources(id) ON DELETE CASCADE,
-		UNIQUE KEY unique_datasource_table (datasource_id, table_name),
 		INDEX idx_datasource_tables_datasource (datasource_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 	`

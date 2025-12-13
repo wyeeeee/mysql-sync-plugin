@@ -3,6 +3,7 @@
     v-model:open="visible"
     :title="`字段映射 - ${table?.tableAlias || table?.tableName}`"
     width="900px"
+    :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
     @ok="handleOk"
     @cancel="visible = false"
   >
