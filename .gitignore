@@ -3,17 +3,16 @@
 .env.local
 config.json
 
-# 构建产物
+# 构建产物 - 二进制文件
+mysql-sync-plugin
 mysql-sync-plugin.exe
-mysql-sync-plugin-linux
-mysql-sync-plugin-darwin
-mysql-sync-plugin-arm64-linux
-mysql-sync-plugin-arm64-darwin
+mysql-sync-plugin-*
 *.db
 
-# 后端
+# 后端二进制
 backend/mysql-sync-server
 backend/mysql-sync-server.exe
+backend/*.exe
 
 # 嵌入的静态文件（构建时生成）
 backend/static/admin/
