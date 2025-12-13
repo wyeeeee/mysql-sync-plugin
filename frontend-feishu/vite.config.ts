@@ -9,7 +9,16 @@ export default defineConfig({
     host: true
   },
   build: {
-    outDir: 'dist'
+    outDir: 'dist',
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'antd': ['antd']
+        }
+      }
+    }
   },
   define: {
     // 解决飞书 SDK 使用 process.env 的问题

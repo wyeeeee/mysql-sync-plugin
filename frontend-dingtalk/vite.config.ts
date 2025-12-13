@@ -9,6 +9,19 @@ export default defineConfig({
     host: true
   },
   build: {
-    outDir: 'dist'
+    outDir: 'dist',
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'antd': ['antd']
+        }
+      }
+    }
+  },
+  // 抑制 Node 模块外部化警告（来自 @oclif/core 等依赖）
+  optimizeDeps: {
+    exclude: ['@oclif/core']
   }
 })
