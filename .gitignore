@@ -1,24 +1,44 @@
 # 环境变量文件
 .env
 .env.local
+config.json
+
+# 构建产物
+mysql-sync-plugin.exe
+mysql-sync-plugin-linux
+mysql-sync-plugin-darwin
+mysql-sync-plugin-arm64-linux
+mysql-sync-plugin-arm64-darwin
+*.db
 
 # 后端
 backend/mysql-sync-server
 backend/mysql-sync-server.exe
 
-# 前端
+# 嵌入的静态文件（构建时生成）
+backend/static/admin/
+backend/static/dingtalk/
+backend/static/feishu/
+!backend/static/admin/.gitkeep
+!backend/static/dingtalk/.gitkeep
+!backend/static/feishu/.gitkeep
+
+# 前端 - 钉钉
 frontend-dingtalk/node_modules/
 frontend-dingtalk/dist/
+frontend-dingtalk/static/
 frontend-dingtalk/.vite/
 
-# 前端
+# 前端 - 飞书
 frontend-feishu/node_modules/
 frontend-feishu/dist/
+frontend-feishu/static/
 frontend-feishu/.vite/
 
-# 前端
+# 前端 - 管理后台
 admin-frontend/node_modules/
 admin-frontend/dist/
+admin-frontend/static/
 admin-frontend/.vite/
 
 # IDE
@@ -27,7 +47,8 @@ admin-frontend/.vite/
 *.swp
 *.swo
 *~
-.claude
+.claude/
+
 # 操作系统
 .DS_Store
 Thumbs.db

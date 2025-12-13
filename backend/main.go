@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"log"
 	"mysql-sync-plugin/auth"
 	"mysql-sync-plugin/config"
@@ -8,6 +9,8 @@ import (
 	"mysql-sync-plugin/logger"
 	"mysql-sync-plugin/repository"
 	"mysql-sync-plugin/service"
+	"mysql-sync-plugin/static"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
@@ -76,24 +79,33 @@ func main() {
 	permissionH := handler.NewPermissionHandler(permissionService)
 	userAuthH := handler.NewUserAuthHandler(userService, permissionService, authStore)
 
+	// 获取嵌入的静态文件系统
+	adminFS := static.GetAdminFS()
+	dingtalkFS := static.GetDingtalkFS()
+	feishuFS := static.GetFeishuFS()
+
 	// ==================== 公共接口 ====================
 
 	// 健康检查
 	r.GET("/health", h.Health)
 
-	// 飞书 meta.json 配置文件
-	r.StaticFile("/meta.json", "./feishu-static/meta.json")
+	// 飞书 meta.json 配置文件（从嵌入文件系统读取）
+	r.GET("/meta.json", func(c *gin.Context) {
+		c.FileFromFS("meta.json", feishuFS)
+	})
 
 	// ==================== 钉钉路由组 ====================
 
 	dingtalkGroup := r.Group("/dingtalk")
 	{
-		// 钉钉前端静态文件
-		dingtalkGroup.Static("/assets", "./dingtalk-static/assets")
+		// 钉钉前端静态文件（从嵌入文件系统）
+		dingtalkGroup.StaticFS("/assets", http.FS(mustSubFS(static.GetDingtalkEmbedFS(), "dingtalk/assets")))
 		dingtalkGroup.GET("/", func(c *gin.Context) {
-			c.File("./dingtalk-static/index.html")
+			c.FileFromFS("index.html", dingtalkFS)
 		})
-		dingtalkGroup.StaticFile("/favicon.ico", "./dingtalk-static/favicon.ico")
+		dingtalkGroup.GET("/favicon.ico", func(c *gin.Context) {
+			c.FileFromFS("favicon.ico", dingtalkFS)
+		})
 
 		// 钉钉API
 		dingtalkAPI := dingtalkGroup.Group("/api")
@@ -122,12 +134,14 @@ func main() {
 
 	feishuGroup := r.Group("/feishu")
 	{
-		// 飞书前端静态文件
-		feishuGroup.Static("/assets", "./feishu-static/assets")
+		// 飞书前端静态文件（从嵌入文件系统）
+		feishuGroup.StaticFS("/assets", http.FS(mustSubFS(static.GetFeishuEmbedFS(), "feishu/assets")))
 		feishuGroup.GET("/", func(c *gin.Context) {
-			c.File("./feishu-static/index.html")
+			c.FileFromFS("index.html", feishuFS)
 		})
-		feishuGroup.StaticFile("/favicon.ico", "./feishu-static/favicon.ico")
+		feishuGroup.GET("/favicon.ico", func(c *gin.Context) {
+			c.FileFromFS("favicon.ico", feishuFS)
+		})
 
 		// 飞书API
 		feishuAPI := feishuGroup.Group("/api")
@@ -248,11 +262,11 @@ func main() {
 		userAPI.GET("/datasources/:id/tables", userAuthH.GetUserTables)
 	}
 
-	// 管理后台静态文件服务
+	// 管理后台静态文件服务（从嵌入文件系统）
 	r.GET("/admin/assets/*filepath", func(c *gin.Context) {
 		filepath := c.Param("filepath")
 		c.Header("Cache-Control", "no-cache, must-revalidate")
-		c.File("./admin/assets" + filepath)
+		c.FileFromFS("assets"+filepath, adminFS)
 	})
 	r.GET("/admin", func(c *gin.Context) {
 		c.Request.Header.Del("If-Modified-Since")
@@ -260,7 +274,7 @@ func main() {
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.Header("Expires", "0")
-		c.File("./admin/index.html")
+		c.FileFromFS("index.html", adminFS)
 	})
 
 	// SPA 路由支持：处理前端路由路径
@@ -282,7 +296,7 @@ func main() {
 			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 			c.Header("Pragma", "no-cache")
 			c.Header("Expires", "0")
-			c.File("./admin/index.html")
+			c.FileFromFS("index.html", adminFS)
 			return
 		}
 
@@ -304,4 +318,13 @@ func main() {
 		mainLog.Errorf("启动", "服务启动失败: %v", err)
 		log.Fatalf("服务启动失败: %v", err)
 	}
+}
+
+// mustSubFS 获取子文件系统，失败时 panic
+func mustSubFS(embedFS fs.FS, dir string) fs.FS {
+	subFS, err := fs.Sub(embedFS, dir)
+	if err != nil {
+		log.Fatalf("获取子文件系统失败: %v", err)
+	}
+	return subFS
 }
