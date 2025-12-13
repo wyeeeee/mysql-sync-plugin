@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io/fs"
 	"log"
 	"mysql-sync-plugin/auth"
 	"mysql-sync-plugin/config"
@@ -10,9 +9,6 @@ import (
 	"mysql-sync-plugin/repository"
 	"mysql-sync-plugin/service"
 	"mysql-sync-plugin/static"
-	"net/http"
-	"path/filepath"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -82,69 +78,14 @@ func main() {
 	permissionH := handler.NewPermissionHandler(permissionService)
 	userAuthH := handler.NewUserAuthHandler(userService, permissionService, authStore)
 
-	// 获取嵌入的静态文件系统
-	adminEmbedFS := static.GetAdminEmbedFS()
-	dingtalkEmbedFS := static.GetDingtalkEmbedFS()
-	feishuEmbedFS := static.GetFeishuEmbedFS()
-
-	// 创建子文件系统用于静态资源服务
-	adminSubFS, _ := fs.Sub(adminEmbedFS, "admin")
-	dingtalkSubFS, _ := fs.Sub(dingtalkEmbedFS, "dingtalk")
-	feishuSubFS, _ := fs.Sub(feishuEmbedFS, "feishu")
-
-	// 根据文件扩展名获取 Content-Type
-	getContentType := func(filePath string) string {
-		ext := strings.ToLower(filepath.Ext(filePath))
-		switch ext {
-		case ".html":
-			return "text/html; charset=utf-8"
-		case ".css":
-			return "text/css; charset=utf-8"
-		case ".js":
-			return "application/javascript; charset=utf-8"
-		case ".json":
-			return "application/json; charset=utf-8"
-		case ".png":
-			return "image/png"
-		case ".jpg", ".jpeg":
-			return "image/jpeg"
-		case ".gif":
-			return "image/gif"
-		case ".svg":
-			return "image/svg+xml"
-		case ".ico":
-			return "image/x-icon"
-		case ".woff":
-			return "font/woff"
-		case ".woff2":
-			return "font/woff2"
-		case ".ttf":
-			return "font/ttf"
-		case ".eot":
-			return "application/vnd.ms-fontobject"
-		default:
-			return "application/octet-stream"
-		}
-	}
-
-	// 辅助函数：从嵌入文件系统读取文件并返回
-	serveEmbedFile := func(c *gin.Context, embedFS fs.FS, filePath string, contentType string) {
-		data, err := fs.ReadFile(embedFS, filePath)
+	// 通用的 index.html 处理函数
+	serveIndexHTML := func(c *gin.Context, getData func() ([]byte, error)) {
+		data, err := getData()
 		if err != nil {
-			c.Status(http.StatusNotFound)
+			c.Status(404)
 			return
 		}
-		c.Data(http.StatusOK, contentType, data)
-	}
-
-	// 辅助函数：从嵌入文件系统读取文件并自动判断 Content-Type
-	serveEmbedFileAuto := func(c *gin.Context, embedFS fs.FS, filePath string) {
-		data, err := fs.ReadFile(embedFS, filePath)
-		if err != nil {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		c.Data(http.StatusOK, getContentType(filePath), data)
+		c.Data(200, "text/html; charset=utf-8", data)
 	}
 
 	// ==================== 公共接口 ====================
@@ -152,30 +93,33 @@ func main() {
 	// 健康检查
 	r.GET("/health", h.Health)
 
-	// 飞书 meta.json 配置文件（从嵌入文件系统读取）
+	// 飞书 meta.json 配置文件
 	r.GET("/meta.json", func(c *gin.Context) {
-		serveEmbedFile(c, feishuSubFS, "meta.json", "application/json")
+		data, err := static.GetFeishuMetaJSON()
+		if err != nil {
+			c.Status(404)
+			return
+		}
+		c.Data(200, "application/json", data)
 	})
 
 	// ==================== 钉钉路由组 ====================
 
-	// 钉钉首页处理函数
-	dingtalkIndexHandler := func(c *gin.Context) {
-		serveEmbedFile(c, dingtalkSubFS, "index.html", "text/html; charset=utf-8")
-	}
-	r.GET("/dingtalk", dingtalkIndexHandler)
+	// 钉钉前端静态文件
+	r.GET("/dingtalk", func(c *gin.Context) { serveIndexHTML(c, static.GetDingtalkIndexHTML) })
+	r.GET("/dingtalk/", func(c *gin.Context) { serveIndexHTML(c, static.GetDingtalkIndexHTML) })
+	r.GET("/dingtalk/favicon.ico", func(c *gin.Context) {
+		data, err := static.GetDingtalkFavicon()
+		if err != nil {
+			c.Status(404)
+			return
+		}
+		c.Data(200, "image/x-icon", data)
+	})
+	r.StaticFS("/dingtalk/assets", static.GetDingtalkAssetsFS())
 
 	dingtalkGroup := r.Group("/dingtalk")
 	{
-		// 钉钉前端静态文件（从嵌入文件系统）
-		dingtalkGroup.GET("/assets/*filepath", func(c *gin.Context) {
-			fp := c.Param("filepath")
-			serveEmbedFileAuto(c, dingtalkSubFS, "assets"+fp)
-		})
-		dingtalkGroup.GET("/", dingtalkIndexHandler)
-		dingtalkGroup.GET("/favicon.ico", func(c *gin.Context) {
-			serveEmbedFileAuto(c, dingtalkSubFS, "favicon.ico")
-		})
 
 		// 钉钉API
 		dingtalkAPI := dingtalkGroup.Group("/api")
@@ -202,23 +146,21 @@ func main() {
 
 	// ==================== 飞书路由组 ====================
 
-	// 飞书首页处理函数
-	feishuIndexHandler := func(c *gin.Context) {
-		serveEmbedFile(c, feishuSubFS, "index.html", "text/html; charset=utf-8")
-	}
-	r.GET("/feishu", feishuIndexHandler)
+	// 飞书前端静态文件
+	r.GET("/feishu", func(c *gin.Context) { serveIndexHTML(c, static.GetFeishuIndexHTML) })
+	r.GET("/feishu/", func(c *gin.Context) { serveIndexHTML(c, static.GetFeishuIndexHTML) })
+	r.GET("/feishu/favicon.ico", func(c *gin.Context) {
+		data, err := static.GetFeishuFavicon()
+		if err != nil {
+			c.Status(404)
+			return
+		}
+		c.Data(200, "image/x-icon", data)
+	})
+	r.StaticFS("/feishu/assets", static.GetFeishuAssetsFS())
 
 	feishuGroup := r.Group("/feishu")
 	{
-		// 飞书前端静态文件（从嵌入文件系统）
-		feishuGroup.GET("/assets/*filepath", func(c *gin.Context) {
-			fp := c.Param("filepath")
-			serveEmbedFileAuto(c, feishuSubFS, "assets"+fp)
-		})
-		feishuGroup.GET("/", feishuIndexHandler)
-		feishuGroup.GET("/favicon.ico", func(c *gin.Context) {
-			serveEmbedFileAuto(c, feishuSubFS, "favicon.ico")
-		})
 
 		// 飞书API
 		feishuAPI := feishuGroup.Group("/api")
@@ -339,29 +281,31 @@ func main() {
 		userAPI.GET("/datasources/:id/tables", userAuthH.GetUserTables)
 	}
 
-	// 管理后台静态文件服务（从嵌入文件系统）
-	r.GET("/admin/assets/*filepath", func(c *gin.Context) {
-		fp := c.Param("filepath")
-		c.Header("Cache-Control", "no-cache, must-revalidate")
-		serveEmbedFileAuto(c, adminSubFS, "assets"+fp)
-	})
+	// 管理后台静态文件服务
+	r.StaticFS("/admin/assets", static.GetAdminAssetsFS())
 
-	// 管理后台首页处理函数
+	// 管理后台首页处理函数（需要禁用缓存）
 	adminIndexHandler := func(c *gin.Context) {
 		c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 		c.Header("Pragma", "no-cache")
 		c.Header("Expires", "0")
-		serveEmbedFile(c, adminSubFS, "index.html", "text/html; charset=utf-8")
+		data, err := static.GetAdminIndexHTML()
+		if err != nil {
+			c.Status(404)
+			return
+		}
+		c.Data(200, "text/html; charset=utf-8", data)
 	}
 	r.GET("/admin", adminIndexHandler)
 	r.GET("/admin/", adminIndexHandler)
 
-	// SPA 路由支持：处理前端路由路径
+	// SPA 路由支持：管理后台前端路由回退
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 
 		// 管理后台 SPA 路由
 		if len(path) >= 6 && path[:6] == "/admin" {
+			// 排除静态资源和 API 路径
 			if len(path) > 13 && path[:13] == "/admin/assets" {
 				c.Status(404)
 				return
@@ -370,10 +314,7 @@ func main() {
 				c.Status(404)
 				return
 			}
-			c.Header("Cache-Control", "no-cache, no-store, must-revalidate")
-			c.Header("Pragma", "no-cache")
-			c.Header("Expires", "0")
-			serveEmbedFile(c, adminSubFS, "index.html", "text/html; charset=utf-8")
+			adminIndexHandler(c)
 			return
 		}
 

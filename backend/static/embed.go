@@ -18,35 +18,50 @@ var dingtalkFS embed.FS
 //go:embed all:feishu
 var feishuFS embed.FS
 
-// GetAdminFS 获取管理后台静态文件系统
-func GetAdminFS() http.FileSystem {
-	subFS, _ := fs.Sub(adminFS, "admin")
+// GetAdminAssetsFS 获取管理后台 assets 文件系统
+func GetAdminAssetsFS() http.FileSystem {
+	subFS, _ := fs.Sub(adminFS, "admin/assets")
 	return http.FS(subFS)
 }
 
-// GetDingtalkFS 获取钉钉前端静态文件系统
-func GetDingtalkFS() http.FileSystem {
-	subFS, _ := fs.Sub(dingtalkFS, "dingtalk")
+// GetDingtalkAssetsFS 获取钉钉前端 assets 文件系统
+func GetDingtalkAssetsFS() http.FileSystem {
+	subFS, _ := fs.Sub(dingtalkFS, "dingtalk/assets")
 	return http.FS(subFS)
 }
 
-// GetFeishuFS 获取飞书前端静态文件系统
-func GetFeishuFS() http.FileSystem {
-	subFS, _ := fs.Sub(feishuFS, "feishu")
+// GetFeishuAssetsFS 获取飞书前端 assets 文件系统
+func GetFeishuAssetsFS() http.FileSystem {
+	subFS, _ := fs.Sub(feishuFS, "feishu/assets")
 	return http.FS(subFS)
 }
 
-// GetAdminEmbedFS 获取管理后台嵌入文件系统（用于读取文件内容）
-func GetAdminEmbedFS() embed.FS {
-	return adminFS
+// GetAdminIndexHTML 获取管理后台 index.html 内容
+func GetAdminIndexHTML() ([]byte, error) {
+	return adminFS.ReadFile("admin/index.html")
 }
 
-// GetDingtalkEmbedFS 获取钉钉前端嵌入文件系统
-func GetDingtalkEmbedFS() embed.FS {
-	return dingtalkFS
+// GetDingtalkIndexHTML 获取钉钉前端 index.html 内容
+func GetDingtalkIndexHTML() ([]byte, error) {
+	return dingtalkFS.ReadFile("dingtalk/index.html")
 }
 
-// GetFeishuEmbedFS 获取飞书前端嵌入文件系统
-func GetFeishuEmbedFS() embed.FS {
-	return feishuFS
+// GetFeishuIndexHTML 获取飞书前端 index.html 内容
+func GetFeishuIndexHTML() ([]byte, error) {
+	return feishuFS.ReadFile("feishu/index.html")
+}
+
+// GetDingtalkFavicon 获取钉钉前端 favicon.ico 内容
+func GetDingtalkFavicon() ([]byte, error) {
+	return dingtalkFS.ReadFile("dingtalk/favicon.ico")
+}
+
+// GetFeishuFavicon 获取飞书前端 favicon.ico 内容
+func GetFeishuFavicon() ([]byte, error) {
+	return feishuFS.ReadFile("feishu/favicon.ico")
+}
+
+// GetFeishuMetaJSON 获取飞书 meta.json 内容
+func GetFeishuMetaJSON() ([]byte, error) {
+	return feishuFS.ReadFile("feishu/meta.json")
 }

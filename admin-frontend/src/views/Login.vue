@@ -1,12 +1,16 @@
 <template>
   <div class="login-container">
     <div class="login-box">
-      <h1 class="login-title">MySQL同步插件</h1>
-      <p class="login-subtitle">管理后台</p>
+      <div class="login-header">
+        <div class="login-logo">🍒</div>
+        <h1 class="login-title">樱桃取数系统</h1>
+        <p class="login-subtitle">连接数据，赋能业务</p>
+      </div>
       <a-form
         :model="form"
         @finish="handleLogin"
         layout="vertical"
+        class="login-form"
       >
         <a-form-item
           name="username"
@@ -14,11 +18,12 @@
         >
           <a-input
             v-model:value="form.username"
-            placeholder="用户名"
+            placeholder="请输入用户名"
             size="large"
+            class="cherry-input"
           >
             <template #prefix>
-              <UserOutlined />
+              <UserOutlined class="input-icon" />
             </template>
           </a-input>
         </a-form-item>
@@ -28,27 +33,28 @@
         >
           <a-input-password
             v-model:value="form.password"
-            placeholder="密码"
+            placeholder="请输入密码"
             size="large"
+            class="cherry-input"
           >
             <template #prefix>
-              <LockOutlined />
+              <LockOutlined class="input-icon" />
             </template>
           </a-input-password>
         </a-form-item>
-        <a-form-item>
+        <a-form-item style="margin-bottom: 16px;">
           <a-button
             type="primary"
             html-type="submit"
             size="large"
             block
             :loading="loading"
+            class="cherry-btn"
           >
-            登录
+            登 录
           </a-button>
         </a-form-item>
       </a-form>
-      <p class="login-hint">默认账户: admin / admin123</p>
     </div>
   </div>
 </template>
@@ -96,34 +102,146 @@ async function handleLogin() {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #f0f2f5 0%, #f5f7fa 50%, #ffffff 100%);
+  padding: 20px;
+  box-sizing: border-box;
 }
 
 .login-box {
-  width: 360px;
-  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 32px;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(30, 58, 95, 0.12);
+  border: 1px solid #d0d7de;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.login-box:hover {
+  box-shadow: 0 12px 48px rgba(30, 58, 95, 0.18);
+  transform: translateY(-2px);
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo {
+  font-size: 56px;
+  margin-bottom: 16px;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .login-title {
-  text-align: center;
   margin: 0 0 8px 0;
-  font-size: 24px;
-  color: #333;
+  font-size: 26px;
+  font-weight: 600;
+  color: #2c3e50;
 }
 
 .login-subtitle {
-  text-align: center;
-  margin: 0 0 32px 0;
-  color: #666;
+  margin: 0;
+  font-size: 14px;
+  color: #7f8c8d;
+}
+
+.login-form :deep(.ant-form-item) {
+  margin-bottom: 20px;
+}
+
+.cherry-input :deep(.ant-input),
+.cherry-input :deep(.ant-input-password) {
+  height: 48px;
+  border-radius: 10px;
+  border-color: #f0e6e6;
+  font-size: 15px;
+}
+
+.cherry-input :deep(.ant-input-affix-wrapper) {
+  height: 48px;
+  border-radius: 10px;
+  border-color: #f0e6e6;
+  padding: 0 16px;
+}
+
+.cherry-input :deep(.ant-input-affix-wrapper:hover),
+.cherry-input :deep(.ant-input-affix-wrapper:focus),
+.cherry-input :deep(.ant-input-affix-wrapper-focused) {
+  border-color: #1e3a5f;
+  box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.1);
+}
+
+.input-icon {
+  color: #bfbfbf;
+  font-size: 16px;
+}
+
+.cherry-btn {
+  height: 48px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.cherry-btn:hover {
+  background: linear-gradient(135deg, #2d4a6f 0%, #3d5a7f 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(30, 58, 95, 0.35);
 }
 
 .login-hint {
   text-align: center;
-  margin: 16px 0 0 0;
-  color: #999;
-  font-size: 12px;
+  margin: 20px 0 0 0;
+  color: #bdc3c7;
+  font-size: 13px;
+}
+
+/* 响应式适配 */
+@media (max-width: 480px) {
+  .login-box {
+    padding: 32px 24px;
+    border-radius: 12px;
+  }
+
+  .login-logo {
+    font-size: 48px;
+  }
+
+  .login-title {
+    font-size: 22px;
+  }
+
+  .cherry-input :deep(.ant-input-affix-wrapper) {
+    height: 44px;
+  }
+
+  .cherry-btn {
+    height: 44px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 360px) {
+  .login-box {
+    padding: 24px 20px;
+  }
+
+  .login-logo {
+    font-size: 40px;
+  }
+
+  .login-title {
+    font-size: 20px;
+  }
 }
 </style>

@@ -1,9 +1,16 @@
-.app-container {
-  padding: 24px;
-  max-width: 600px;
-  margin: 0 auto;
-  background: #fff;
-  min-height: 100vh;
+/* 樱桃表格取数系统 - 钉钉版 */
+
+:root {
+  --cherry-primary: #e74c3c;
+  --cherry-primary-dark: #c0392b;
+  --cherry-primary-light: #fadbd8;
+  --cherry-gradient: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+  --cherry-bg: linear-gradient(135deg, #fdf2f2 0%, #fff5f5 50%, #ffffff 100%);
+  --text-primary: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --border-color: #f0e6e6;
+  --card-shadow: 0 8px 32px rgba(231, 76, 60, 0.12);
+  --card-shadow-hover: 0 12px 48px rgba(231, 76, 60, 0.18);
 }
 
 body {
@@ -12,9 +19,292 @@ body {
     'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f0f2f5;
+  background: var(--cherry-bg);
+  min-height: 100vh;
 }
 
 #root {
   min-height: 100vh;
+}
+
+.app-container {
+  padding: 24px;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+/* 加载页面样式 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.loading-logo {
+  font-size: 48px;
+  margin-bottom: 24px;
+  animation: bounce 1.5s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.loading-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-top: 16px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--cherry-primary-light);
+  border-top-color: var(--cherry-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 登录页面样式 */
+.login-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 40px 20px;
+}
+
+.login-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.login-logo {
+  font-size: 56px;
+  margin-bottom: 16px;
+}
+
+.login-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.login-subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 360px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
+  transition: box-shadow 0.3s ease;
+}
+
+.login-card:hover {
+  box-shadow: var(--card-shadow-hover);
+}
+
+/* 配置页面样式 */
+.config-container {
+  padding: 24px;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.config-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-logo {
+  font-size: 32px;
+}
+
+.config-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.config-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: var(--card-shadow);
+  border: 1px solid var(--border-color);
+}
+
+.table-info-card {
+  margin-top: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #fff9f9 0%, #ffffff 100%);
+  border-radius: 8px;
+  border: 1px solid var(--cherry-primary-light);
+}
+
+.table-info-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cherry-primary);
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.table-info-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.table-info-item:last-child {
+  margin-bottom: 0;
+}
+
+.table-info-label {
+  color: var(--text-secondary);
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.table-info-value {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.table-info-sql {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 12px;
+  background: #f8f8f8;
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 按钮样式覆盖 */
+.cherry-btn-primary {
+  background: var(--cherry-gradient) !important;
+  border: none !important;
+  height: 44px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+.cherry-btn-primary:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
+}
+
+.cherry-btn-primary:disabled {
+  background: #d5d5d5 !important;
+  opacity: 1 !important;
+}
+
+.cherry-btn-text {
+  color: var(--text-secondary) !important;
+  font-size: 13px !important;
+}
+
+.cherry-btn-text:hover {
+  color: var(--cherry-primary) !important;
+}
+
+/* 输入框样式覆盖 */
+.cherry-input .ant-input,
+.cherry-input .ant-input-password {
+  height: 44px !important;
+  border-radius: 8px !important;
+  border-color: var(--border-color) !important;
+}
+
+.cherry-input .ant-input:focus,
+.cherry-input .ant-input-password:focus,
+.cherry-input .ant-input-affix-wrapper:focus,
+.cherry-input .ant-input-affix-wrapper-focused {
+  border-color: var(--cherry-primary) !important;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.1) !important;
+}
+
+.cherry-input .ant-input-affix-wrapper {
+  border-radius: 8px !important;
+  border-color: var(--border-color) !important;
+}
+
+/* 选择器样式覆盖 */
+.cherry-select .ant-select-selector {
+  height: 44px !important;
+  border-radius: 8px !important;
+  border-color: var(--border-color) !important;
+  padding: 6px 12px !important;
+}
+
+.cherry-select .ant-select-selection-item {
+  line-height: 30px !important;
+}
+
+.cherry-select .ant-select-selection-placeholder {
+  line-height: 30px !important;
+}
+
+.cherry-select.ant-select-focused .ant-select-selector {
+  border-color: var(--cherry-primary) !important;
+  box-shadow: 0 0 0 2px rgba(231, 76, 60, 0.1) !important;
+}
+
+/* 表单标签样式 */
+.cherry-form .ant-form-item-label > label {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* 空状态提示 */
+.empty-tip {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-secondary);
+}
+
+.empty-tip-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
 }

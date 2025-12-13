@@ -166,8 +166,6 @@ func (h *FeishuHandler) TableMeta(c *gin.Context) {
 	}
 	detail := fmt.Sprintf("主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s", resolvedConfig.Host, resolvedConfig.Port, resolvedConfig.Database, resolvedConfig.Table, resolvedConfig.QueryMode, executedSQL)
 
-	h.log.InfoWithDetail("获取表结构", "开始获取表结构", detail)
-
 	// 构建钉钉格式的请求，复用服务层
 	dingtalkReq := &models.SheetMetaRequest{
 		RequestID: feishuContext.Bitable.LogID,
@@ -293,8 +291,6 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 	}
 	detail := fmt.Sprintf("主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s",
 		resolvedConfig.Host, resolvedConfig.Port, resolvedConfig.Database, resolvedConfig.Table, resolvedConfig.QueryMode, executedSQL)
-
-	h.log.InfoWithDetail("获取记录", "开始获取表记录", detail)
 
 	// 构建钉钉格式的请求，复用服务层
 	dingtalkReq := &models.RecordsRequest{

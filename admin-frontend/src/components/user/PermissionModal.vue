@@ -8,27 +8,29 @@
   >
     <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="datasource" tab="数据源权限">
-        <a-checkbox-group
-          v-model:value="selectedDatasources"
-          style="width: 100%"
-          @change="handleDatasourcePermissionChange"
-        >
-          <a-row>
-            <a-col
-              v-for="ds in datasourcesWithPermission"
-              :key="ds.id"
-              :span="24"
-              style="margin-bottom: 8px"
-            >
-              <a-checkbox :value="ds.id">
-                {{ ds.name }}
-                <span style="color: #999; margin-left: 8px">
-                  {{ ds.description }}
-                </span>
-              </a-checkbox>
-            </a-col>
-          </a-row>
-        </a-checkbox-group>
+        <div style="max-height: 400px; overflow-y: auto;">
+          <a-checkbox-group
+            v-model:value="selectedDatasources"
+            style="width: 100%"
+            @change="handleDatasourcePermissionChange"
+          >
+            <a-row>
+              <a-col
+                v-for="ds in datasourcesWithPermission"
+                :key="ds.id"
+                :span="24"
+                style="margin-bottom: 8px"
+              >
+                <a-checkbox :value="ds.id">
+                  {{ ds.name }}
+                  <span style="color: #999; margin-left: 8px">
+                    {{ ds.description }}
+                  </span>
+                </a-checkbox>
+              </a-col>
+            </a-row>
+          </a-checkbox-group>
+        </div>
       </a-tab-pane>
       <a-tab-pane key="table" tab="表权限">
         <a-form-item label="选择数据源">
@@ -60,27 +62,29 @@
               全选
             </a-checkbox>
           </div>
-          <a-checkbox-group
-            v-model:value="selectedTables"
-            style="width: 100%"
-            @change="handleTablePermissionChange"
-          >
-            <a-row>
-              <a-col
-                v-for="table in tablesWithPermission"
-                :key="table.id"
-                :span="24"
-                style="margin-bottom: 8px"
-              >
-                <a-checkbox :value="table.id">
-                  {{ table.tableAlias || table.tableName }}
-                  <span style="color: #999; margin-left: 8px">
-                    ({{ table.tableName }})
-                  </span>
-                </a-checkbox>
-              </a-col>
-            </a-row>
-          </a-checkbox-group>
+          <div style="max-height: 350px; overflow-y: auto;">
+            <a-checkbox-group
+              v-model:value="selectedTables"
+              style="width: 100%"
+              @change="handleTablePermissionChange"
+            >
+              <a-row>
+                <a-col
+                  v-for="table in tablesWithPermission"
+                  :key="table.id"
+                  :span="24"
+                  style="margin-bottom: 8px"
+                >
+                  <a-checkbox :value="table.id">
+                    {{ table.tableAlias || table.tableName }}
+                    <span style="color: #999; margin-left: 8px">
+                      ({{ table.tableName }})
+                    </span>
+                  </a-checkbox>
+                </a-col>
+              </a-row>
+            </a-checkbox-group>
+          </div>
         </div>
       </a-tab-pane>
     </a-tabs>

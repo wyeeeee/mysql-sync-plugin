@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, Input, Button, message, Card } from 'antd';
+import { Form, Input, Button, message } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 import { login, saveToken, saveUser } from './auth';
 import './App.css';
@@ -19,7 +19,6 @@ function Login({ onLoginSuccess }: LoginProps) {
 
       const { token, user } = await login(values.username, values.password);
 
-      // 保存 token 和用户信息
       saveToken(token);
       saveUser(user);
 
@@ -37,21 +36,29 @@ function Login({ onLoginSuccess }: LoginProps) {
   };
 
   return (
-    <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-      <Card title="用户登录" style={{ width: 400 }}>
+    <div className="login-container">
+      <div className="login-header">
+        <div className="login-logo">🍒</div>
+        <h1 className="login-title">樱桃表格取数系统</h1>
+        <p className="login-subtitle">连接数据，赋能业务</p>
+      </div>
+
+      <div className="login-card">
         <Form
           form={form}
           layout="vertical"
           onFinish={handleLogin}
+          className="cherry-form"
         >
           <Form.Item
             name="username"
             rules={[{ required: true, message: '请输入用户名' }]}
           >
             <Input
-              prefix={<UserOutlined />}
-              placeholder="用户名"
+              prefix={<UserOutlined style={{ color: '#bfbfbf' }} />}
+              placeholder="请输入用户名"
               size="large"
+              className="cherry-input"
             />
           </Form.Item>
 
@@ -60,19 +67,26 @@ function Login({ onLoginSuccess }: LoginProps) {
             rules={[{ required: true, message: '请输入密码' }]}
           >
             <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="密码"
+              prefix={<LockOutlined style={{ color: '#bfbfbf' }} />}
+              placeholder="请输入密码"
               size="large"
+              className="cherry-input"
             />
           </Form.Item>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" loading={loading} block size="large">
-              登录
+          <Form.Item style={{ marginBottom: 0, marginTop: 8 }}>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              block
+              className="cherry-btn-primary"
+            >
+              登 录
             </Button>
           </Form.Item>
         </Form>
-      </Card>
+      </div>
     </div>
   );
 }

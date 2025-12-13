@@ -1,19 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Form, Button, Select, message } from 'antd';
+import { DatabaseOutlined, TableOutlined } from '@ant-design/icons';
 import { bitable } from '@lark-base-open/connector-api';
 import { getToken, getUserDatasources, getUserTables } from './auth';
 import './App.css';
 
-const { Option } = Select;
-
-// 数据源类型
 interface Datasource {
   id: number;
   name: string;
   description?: string;
 }
 
-// 表类型
 interface DatasourceTable {
   id: number;
   tableName: string;
@@ -29,20 +26,14 @@ interface ConfigProps {
 function Config({ onLogout }: ConfigProps) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-
-  // 数据状态
   const [datasources, setDatasources] = useState<Datasource[]>([]);
   const [tables, setTables] = useState<DatasourceTable[]>([]);
-  const [selectedDatasource, setSelectedDatasource] = useState<Datasource | null>(null);
   const [selectedTable, setSelectedTable] = useState<DatasourceTable | null>(null);
 
   useEffect(() => {
-    console.log('飞书多维表格SDK初始化成功');
-    // 加载用户数据源列表
     loadDatasources();
   }, []);
 
-  // 加载用户可访问的数据源列表
   const loadDatasources = async () => {
     try {
       setLoading(true);
@@ -69,7 +60,6 @@ function Config({ onLogout }: ConfigProps) {
     }
   };
 
-  // 数据源选择变化时，获取表列表
   const handleDatasourceChange = async (datasourceId: number) => {
     try {
       setLoading(true);
@@ -83,9 +73,6 @@ function Config({ onLogout }: ConfigProps) {
         onLogout();
         return;
       }
-
-      const ds = datasources.find(d => d.id === datasourceId);
-      setSelectedDatasource(ds || null);
 
       const tableList = await getUserTables(token, datasourceId);
       setTables(tableList);
@@ -103,7 +90,6 @@ function Config({ onLogout }: ConfigProps) {
     }
   };
 
-  // 表选择变化时
   const handleTableChange = (tableId: number) => {
     const table = tables.find(t => t.id === tableId);
     if (table) {
@@ -111,7 +97,6 @@ function Config({ onLogout }: ConfigProps) {
     }
   };
 
-  // 保存配置
   const handleSaveConfig = async () => {
     try {
       await form.validateFields(['datasourceId', 'tableId']);
@@ -123,7 +108,6 @@ function Config({ onLogout }: ConfigProps) {
 
       setLoading(true);
 
-      // 构建配置对象（新方案：使用 tableId）
       const config = {
         tableId: selectedTable.id,
       };
@@ -140,107 +124,121 @@ function Config({ onLogout }: ConfigProps) {
     }
   };
 
-  // 保存配置到飞书
   const saveConfigToFeishu = async (config: any) => {
     try {
       await bitable.saveConfigAndGoNext(config);
-      message.success('配置保存成功,正在跳转...');
-      console.log('保存配置:', config);
+      message.success('配置保存成功，正在跳转...');
     } catch (error: any) {
       console.log('保存配置:', config);
-      message.info('开发环境: 配置已保存到控制台');
+      message.info('开发环境：配置已保存到控制台');
     }
   };
 
   return (
-    <div className="app-container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>MySQL 同步配置</h2>
-        <Button onClick={onLogout}>退出登录</Button>
+    <div className="config-container">
+      <div className="config-header">
+        <div className="config-header-left">
+          <span className="config-logo">🍒</span>
+          <h1 className="config-title">樱桃表格取数系统</h1>
+        </div>
+        <Button type="text" onClick={onLogout} className="cherry-btn-text">
+          退出
+        </Button>
       </div>
 
-      <Form
-        form={form}
-        layout="vertical"
-      >
-        <Form.Item
-          label="选择数据源"
-          name="datasourceId"
-          rules={[{ required: true, message: '请选择数据源' }]}
-        >
-          <Select
-            placeholder="请选择数据源"
-            showSearch
-            loading={loading}
-            onChange={handleDatasourceChange}
-            filterOption={(input, option) =>
-              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-            }
+      <div className="config-card">
+        <Form form={form} layout="vertical" className="cherry-form">
+          <Form.Item
+            label={<span><DatabaseOutlined style={{ marginRight: 6 }} />选择数据源</span>}
+            name="datasourceId"
+            rules={[{ required: true, message: '请选择数据源' }]}
           >
-            {datasources.map(ds => (
-              <Option key={ds.id} value={ds.id}>
-                {ds.name} {ds.description && `(${ds.description})`}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
+            <Select
+              placeholder="请选择数据源"
+              showSearch
+              loading={loading}
+              onChange={handleDatasourceChange}
+              className="cherry-select"
+              filterOption={(input, option) =>
+                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {datasources.map(ds => (
+                <Select.Option key={ds.id} value={ds.id}>
+                  {ds.name}{ds.description && ` (${ds.description})`}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
 
-        <Form.Item
-          label="选择表"
-          name="tableId"
-          rules={[{ required: true, message: '请选择表' }]}
-        >
-          <Select
-            placeholder="请先选择数据源"
-            showSearch
-            disabled={tables.length === 0}
-            onChange={handleTableChange}
-            filterOption={(input, option) =>
-              String(option?.children || '').toLowerCase().includes(input.toLowerCase())
-            }
+          <Form.Item
+            label={<span><TableOutlined style={{ marginRight: 6 }} />选择数据表</span>}
+            name="tableId"
+            rules={[{ required: true, message: '请选择数据表' }]}
           >
-            {tables.map(table => (
-              <Option key={table.id} value={table.id}>
-                {table.tableAlias || table.tableName}
-                {table.tableAlias && ` (${table.tableName})`}
-              </Option>
-            ))}
-          </Select>
-        </Form.Item>
+            <Select
+              placeholder={tables.length === 0 ? '请先选择数据源' : '请选择数据表'}
+              showSearch
+              disabled={tables.length === 0}
+              onChange={handleTableChange}
+              className="cherry-select"
+              filterOption={(input, option) =>
+                String(option?.children || '').toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {tables.map(table => (
+                <Select.Option key={table.id} value={table.id}>
+                  {table.tableAlias || table.tableName}
+                  {table.tableAlias && ` (${table.tableName})`}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
 
-        {selectedTable && (
-          <div style={{ marginTop: 16, padding: 12, background: '#f5f5f5', borderRadius: 4 }}>
-            <p style={{ margin: 0, color: '#666' }}>
-              <strong>表名:</strong> {selectedTable.tableName}
-            </p>
-            {selectedTable.tableAlias && (
-              <p style={{ margin: '4px 0 0 0', color: '#666' }}>
-                <strong>别名:</strong> {selectedTable.tableAlias}
-              </p>
-            )}
-            <p style={{ margin: '4px 0 0 0', color: '#666' }}>
-              <strong>取数模式:</strong> {selectedTable.queryMode === 'table' ? '数据表' : '自定义SQL'}
-            </p>
-            {selectedTable.customSql && (
-              <p style={{ margin: '4px 0 0 0', color: '#666', fontFamily: 'monospace', fontSize: '12px' }}>
-                <strong>SQL:</strong> {selectedTable.customSql}
-              </p>
-            )}
-          </div>
-        )}
+          {selectedTable && (
+            <div className="table-info-card">
+              <div className="table-info-title">
+                <TableOutlined /> 已选择的数据表
+              </div>
+              <div className="table-info-item">
+                <span className="table-info-label">表名</span>
+                <span className="table-info-value">{selectedTable.tableName}</span>
+              </div>
+              {selectedTable.tableAlias && (
+                <div className="table-info-item">
+                  <span className="table-info-label">别名</span>
+                  <span className="table-info-value">{selectedTable.tableAlias}</span>
+                </div>
+              )}
+              <div className="table-info-item">
+                <span className="table-info-label">取数模式</span>
+                <span className="table-info-value">
+                  {selectedTable.queryMode === 'table' ? '数据表' : '自定义SQL'}
+                </span>
+              </div>
+              {selectedTable.customSql && (
+                <div className="table-info-item">
+                  <span className="table-info-label">SQL语句</span>
+                  <div className="table-info-sql">{selectedTable.customSql}</div>
+                </div>
+              )}
+            </div>
+          )}
 
-        <Form.Item style={{ marginTop: 24 }}>
-          <Button
-            type="primary"
-            onClick={handleSaveConfig}
-            loading={loading}
-            disabled={!selectedTable}
-            block
-          >
-            确认
-          </Button>
-        </Form.Item>
-      </Form>
+          <Form.Item style={{ marginTop: 24, marginBottom: 0 }}>
+            <Button
+              type="primary"
+              onClick={handleSaveConfig}
+              loading={loading}
+              disabled={!selectedTable}
+              block
+              className="cherry-btn-primary"
+            >
+              确认配置
+            </Button>
+          </Form.Item>
+        </Form>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@
     :title="`表配置 - ${datasource?.name}`"
     width="900px"
     :footer="null"
+    :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
   >
     <div style="margin-bottom: 16px">
       <a-button type="primary" @click="showAddTableModal">

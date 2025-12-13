@@ -145,8 +145,6 @@ func (h *Handler) SheetMeta(c *gin.Context) {
 	}
 	detail := fmt.Sprintf("主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s", resolvedConfig.Host, resolvedConfig.Port, resolvedConfig.Database, resolvedConfig.Table, resolvedConfig.QueryMode, executedSQL)
 
-	h.log.InfoWithDetail("获取表结构", "开始获取表结构", detail)
-
 	// 构建新的请求
 	newReq := &models.SheetMetaRequest{
 		RequestID: req.RequestID,
@@ -237,8 +235,6 @@ func (h *Handler) Records(c *gin.Context) {
 	}
 	detail := fmt.Sprintf("主机: %s:%d, 数据库: %s, 表: %s, 模式: %s\nSQL: %s",
 		resolvedConfig.Host, resolvedConfig.Port, resolvedConfig.Database, resolvedConfig.Table, resolvedConfig.QueryMode, executedSQL)
-
-	h.log.InfoWithDetail("获取记录", "开始获取表记录", detail)
 
 	// 构建新的请求
 	newReq := &models.RecordsRequest{
