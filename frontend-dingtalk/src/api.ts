@@ -13,13 +13,18 @@ const api = axios.create({
   },
 });
 
-// 请求拦截器：自动添加 token
+// 请求拦截器：自动添加 token 和时间戳防止缓存
 api.interceptors.request.use(
   (config) => {
     const token = getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // 添加时间戳防止浏览器缓存
+    config.params = {
+      ...config.params,
+      _t: Date.now(),
+    };
     return config;
   },
   (error) => {

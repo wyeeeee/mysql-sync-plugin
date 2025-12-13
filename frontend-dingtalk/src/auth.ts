@@ -12,6 +12,20 @@ const authApi = axios.create({
   },
 });
 
+// 请求拦截器：添加时间戳防止缓存
+authApi.interceptors.request.use(
+  (config) => {
+    config.params = {
+      ...config.params,
+      _t: Date.now(),
+    };
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // 用户登录
 export const login = async (username: string, password: string): Promise<{ token: string; user: any }> => {
   const response = await authApi.post('/api/auth/login', { username, password });
