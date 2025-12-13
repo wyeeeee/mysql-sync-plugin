@@ -32,6 +32,7 @@
         :pagination="false"
         row-key="index"
         size="small"
+        :scroll="{ y: 600 }"
       >
         <template #bodyCell="{ column, record, index }">
           <template v-if="column.key === 'enabled'">

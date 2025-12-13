@@ -8,7 +8,17 @@
   >
     <a-tabs v-model:activeKey="activeTab">
       <a-tab-pane key="datasource" tab="数据源权限">
-        <div style="max-height: 400px; overflow-y: auto;">
+        <a-input
+          v-model:value="datasourceSearchKeyword"
+          placeholder="搜索数据源名称或描述"
+          allow-clear
+          style="margin-bottom: 12px"
+        >
+          <template #prefix>
+            <SearchOutlined style="color: #bfbfbf" />
+          </template>
+        </a-input>
+        <div style="max-height: 350px; overflow-y: auto;">
           <a-checkbox-group
             v-model:value="selectedDatasources"
             style="width: 100%"
@@ -16,7 +26,7 @@
           >
             <a-row>
               <a-col
-                v-for="ds in datasourcesWithPermission"
+                v-for="ds in filteredDatasources"
                 :key="ds.id"
                 :span="24"
                 style="margin-bottom: 8px"
@@ -30,6 +40,9 @@
               </a-col>
             </a-row>
           </a-checkbox-group>
+          <div v-if="filteredDatasources.length === 0" style="text-align: center; padding: 20px; color: #999">
+            {{ datasourceSearchKeyword ? '未找到匹配的数据源' : '暂无数据源' }}
+          </div>
         </div>
       </a-tab-pane>
       <a-tab-pane key="table" tab="表权限">
@@ -53,16 +66,29 @@
           请先选择一个数据源
         </div>
         <div v-else>
+          <a-input
+            v-model:value="tableSearchKeyword"
+            placeholder="搜索表名或别名"
+            allow-clear
+            style="margin-bottom: 12px"
+          >
+            <template #prefix>
+              <SearchOutlined style="color: #bfbfbf" />
+            </template>
+          </a-input>
           <div style="margin-bottom: 8px">
             <a-checkbox
-              :indeterminate="selectedTables.length > 0 && selectedTables.length < tablesWithPermission.length"
-              :checked="selectedTables.length === tablesWithPermission.length && tablesWithPermission.length > 0"
+              :indeterminate="selectedTables.length > 0 && selectedTables.length < filteredTables.length"
+              :checked="selectedTables.length === filteredTables.length && filteredTables.length > 0"
               @change="handleSelectAllTables"
             >
               全选
             </a-checkbox>
+            <span style="color: #999; margin-left: 12px; font-size: 12px">
+              (已选 {{ selectedTables.length }} / {{ tablesWithPermission.length }})
+            </span>
           </div>
-          <div style="max-height: 350px; overflow-y: auto;">
+          <div style="max-height: 300px; overflow-y: auto;">
             <a-checkbox-group
               v-model:value="selectedTables"
               style="width: 100%"
@@ -70,7 +96,7 @@
             >
               <a-row>
                 <a-col
-                  v-for="table in tablesWithPermission"
+                  v-for="table in filteredTables"
                   :key="table.id"
                   :span="24"
                   style="margin-bottom: 8px"
@@ -84,6 +110,9 @@
                 </a-col>
               </a-row>
             </a-checkbox-group>
+            <div v-if="filteredTables.length === 0" style="text-align: center; padding: 20px; color: #999">
+              {{ tableSearchKeyword ? '未找到匹配的表' : '暂无表配置' }}
+            </div>
           </div>
         </div>
       </a-tab-pane>
@@ -92,8 +121,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
+import { SearchOutlined } from '@ant-design/icons-vue'
 import { permissionApi } from '../../api'
 
 const props = defineProps<{
@@ -117,6 +147,34 @@ let isUpdatingPermission = false
 let datasourcePermissionTimer: number | null = null
 let tablePermissionTimer: number | null = null
 
+// 搜索关键字
+const datasourceSearchKeyword = ref('')
+const tableSearchKeyword = ref('')
+
+// 过滤后的数据源列表
+const filteredDatasources = computed(() => {
+  if (!datasourceSearchKeyword.value) {
+    return datasourcesWithPermission.value
+  }
+  const keyword = datasourceSearchKeyword.value.toLowerCase()
+  return datasourcesWithPermission.value.filter((ds: any) =>
+    ds.name?.toLowerCase().includes(keyword) ||
+    ds.description?.toLowerCase().includes(keyword)
+  )
+})
+
+// 过滤后的表列表
+const filteredTables = computed(() => {
+  if (!tableSearchKeyword.value) {
+    return tablesWithPermission.value
+  }
+  const keyword = tableSearchKeyword.value.toLowerCase()
+  return tablesWithPermission.value.filter((table: any) =>
+    table.tableName?.toLowerCase().includes(keyword) ||
+    table.tableAlias?.toLowerCase().includes(keyword)
+  )
+})
+
 watch(() => props.open, async (val) => {
   visible.value = val
   if (val && props.user) {
@@ -124,6 +182,8 @@ watch(() => props.open, async (val) => {
     currentDatasourceId.value = undefined
     tablesWithPermission.value = []
     selectedTables.value = []
+    datasourceSearchKeyword.value = ''
+    tableSearchKeyword.value = ''
     await loadDatasourcesWithPermission()
   }
 })

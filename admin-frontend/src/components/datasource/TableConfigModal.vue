@@ -6,16 +6,26 @@
     :footer="null"
     :body-style="{ maxHeight: '70vh', overflowY: 'auto' }"
   >
-    <div style="margin-bottom: 16px">
+    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
       <a-button type="primary" @click="showAddTableModal">
         <template #icon><PlusOutlined /></template>
         添加表配置
       </a-button>
+      <a-input
+        v-model:value="configSearchKeyword"
+        placeholder="搜索表名或别名"
+        allow-clear
+        style="width: 250px"
+      >
+        <template #prefix>
+          <SearchOutlined style="color: #bfbfbf" />
+        </template>
+      </a-input>
     </div>
 
     <a-table
       :columns="tableColumns"
-      :data-source="tables"
+      :data-source="filteredTables"
       :loading="loading"
       row-key="id"
       :pagination="false"
@@ -61,6 +71,16 @@
         <template v-if="tableFormData.queryMode === 'table'">
           <a-form-item label="选择表" required>
             <a-spin :spinning="tablesLoading">
+              <a-input
+                v-model:value="tableSearchKeyword"
+                placeholder="搜索表名"
+                allow-clear
+                style="margin-bottom: 8px"
+              >
+                <template #prefix>
+                  <SearchOutlined style="color: #bfbfbf" />
+                </template>
+              </a-input>
               <div style="margin-bottom: 8px">
                 <a-checkbox
                   :indeterminate="selectedTableNames.length > 0 && selectedTableNames.length < availableTables.length"
@@ -69,23 +89,23 @@
                 >
                   全选
                 </a-checkbox>
+                <span style="color: #999; margin-left: 12px; font-size: 12px">
+                  (已选 {{ selectedTableNames.length }} / {{ availableTables.length }})
+                </span>
               </div>
               <div style="max-height: 300px; overflow-y: auto; border: 1px solid #d9d9d9; border-radius: 4px; padding: 8px">
                 <a-checkbox-group v-model:value="selectedTableNames" style="width: 100%">
                   <a-row>
-                    <a-col v-for="table in availableTables" :key="table" :span="24" style="margin-bottom: 8px">
+                    <a-col v-for="table in filteredAvailableTables" :key="table" :span="24" style="margin-bottom: 8px">
                       <a-checkbox :value="table">{{ table }}</a-checkbox>
                     </a-col>
                   </a-row>
                 </a-checkbox-group>
-                <div v-if="availableTables.length === 0" style="text-align: center; padding: 20px; color: #999">
-                  暂无可用的表
+                <div v-if="filteredAvailableTables.length === 0" style="text-align: center; padding: 20px; color: #999">
+                  {{ tableSearchKeyword ? '未找到匹配的表' : '暂无可用的表' }}
                 </div>
               </div>
             </a-spin>
-            <div style="margin-top: 8px; color: #999; font-size: 12px">
-              已选择 {{ selectedTableNames.length }} 个表
-            </div>
           </a-form-item>
         </template>
 
@@ -132,9 +152,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons-vue'
 import { datasourceApi } from '../../api'
 
 const props = defineProps<{
@@ -150,6 +170,19 @@ const emit = defineEmits<{
 const visible = ref(props.open)
 const loading = ref(false)
 const tables = ref<any[]>([])
+const configSearchKeyword = ref('')
+
+// 过滤后的已配置表列表
+const filteredTables = computed(() => {
+  if (!configSearchKeyword.value) {
+    return tables.value
+  }
+  const keyword = configSearchKeyword.value.toLowerCase()
+  return tables.value.filter((table: any) =>
+    table.tableName?.toLowerCase().includes(keyword) ||
+    table.tableAlias?.toLowerCase().includes(keyword)
+  )
+})
 
 const tableColumns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
@@ -180,10 +213,23 @@ const editFormData = ref({
 const availableTables = ref<string[]>([])
 const selectedTableNames = ref<string[]>([])
 const tablesLoading = ref(false)
+const tableSearchKeyword = ref('')
+
+// 过滤后的可用表列表
+const filteredAvailableTables = computed(() => {
+  if (!tableSearchKeyword.value) {
+    return availableTables.value
+  }
+  const keyword = tableSearchKeyword.value.toLowerCase()
+  return availableTables.value.filter((tableName: string) =>
+    tableName.toLowerCase().includes(keyword)
+  )
+})
 
 watch(() => props.open, async (val) => {
   visible.value = val
   if (val && props.datasource) {
+    configSearchKeyword.value = ''
     await loadTables()
   }
 })
@@ -219,6 +265,7 @@ const showAddTableModal = async () => {
     customSql: ''
   }
   selectedTableNames.value = []
+  tableSearchKeyword.value = ''
   tableModalVisible.value = true
   await loadAvailableTables()
 }
