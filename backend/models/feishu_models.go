@@ -182,13 +182,10 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 	}
 
 	feishuFields := make([]FeishuField, len(dingtalk.Fields))
-	primaryFound := false // 飞书只允许一个主键字段
+	primaryFound := false
 
 	for i, f := range dingtalk.Fields {
-		// 飞书要求 fieldID 只能包含英文、数字、下划线，使用数字索引确保唯一
-		fieldID := fmt.Sprintf("fid_%d", i)
-
-		// fieldName 使用别名（如果有的话）
+		// 字段ID直接使用钉钉的ID（已经是 fid_0, fid_1 格式）
 		fieldName := f.Name
 		if alias, ok := aliasMap[f.Name]; ok {
 			fieldName = alias
@@ -197,7 +194,7 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 		// 转换 property 为飞书格式
 		feishuProperty := convertPropertyToFeishu(f.Property, DingtalkFieldTypeToFeishu(f.Type))
 
-		// 飞书只允许一个主键字段，取第一个主键
+		// 飞书只允许一个主键字段
 		isPrimary := false
 		if f.IsPrimary && !primaryFound {
 			isPrimary = true
@@ -205,7 +202,7 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 		}
 
 		feishuFields[i] = FeishuField{
-			FieldID:     fieldID,
+			FieldID:     f.ID,
 			FieldName:   fieldName,
 			FieldType:   DingtalkFieldTypeToFeishu(f.Type),
 			IsPrimary:   isPrimary,
@@ -214,7 +211,7 @@ func ConvertToFeishuTableMetaWithMappings(dingtalk *SheetMetaResponse, mappings 
 		}
 	}
 
-	// 飞书要求必须有一个主键字段，如果没有找到主键，将第一个字段设为主键
+	// 飞书要求必须有一个主键字段
 	if !primaryFound && len(feishuFields) > 0 {
 		feishuFields[0].IsPrimary = true
 	}
@@ -294,28 +291,14 @@ func convertNumberFormatter(formatter string) string {
 }
 
 // ConvertToFeishuRecords 将钉钉记录响应转换为飞书格式
-// fields 参数用于保证字段顺序和表结构一致
+// 字段ID已统一为 fid_0, fid_1 格式，直接复用
 func ConvertToFeishuRecords(dingtalk *RecordsResponse, fields []Field) *FeishuRecordsResponse {
-	// 建立原始字段 ID 到数字索引的映射（按字段顺序）
-	keyToIndex := make(map[string]int)
-	for i, f := range fields {
-		keyToIndex[f.ID] = i
-	}
-
-	// 转换记录
 	feishuRecords := make([]FeishuRecord, len(dingtalk.Records))
 	for i, r := range dingtalk.Records {
+		// 直接复用字段数据，只需处理 nil 值
 		sanitizedData := make(map[string]interface{})
 		for key, value := range r.Fields {
-			index, ok := keyToIndex[key]
-			if !ok {
-				// 如果找不到映射，使用 key 本身的哈希
-				index = len(keyToIndex)
-				keyToIndex[key] = index
-			}
-			fieldID := fmt.Sprintf("fid_%d", index)
-			// 飞书要求值必须是正确的类型，nil 需要处理
-			sanitizedData[fieldID] = convertValueForFeishu(value)
+			sanitizedData[key] = convertValueForFeishu(value)
 		}
 
 		// primaryID 使用记录 ID

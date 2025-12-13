@@ -196,9 +196,6 @@ func (s *MySQLService) GetRecords(req *models.RecordsRequest) (*models.RecordsRe
 		return nil, err
 	}
 
-	// 应用字段映射到记录
-	records = s.applyRecordFieldMappings(records, config.FieldMappings)
-
 	// 计算下一页token
 	nextOffset := offset + maxResults
 	hasMore := nextOffset < total
@@ -259,6 +256,7 @@ func (s *MySQLService) getTableSchema(db *sql.DB, database, table string) ([]mod
 	defer rows.Close()
 
 	var fields []models.Field
+	fieldIndex := 0
 	for rows.Next() {
 		var columnName, dataType, columnKey, columnComment string
 		if err := rows.Scan(&columnName, &dataType, &columnKey, &columnComment); err != nil {
@@ -266,7 +264,7 @@ func (s *MySQLService) getTableSchema(db *sql.DB, database, table string) ([]mod
 		}
 
 		field := models.Field{
-			ID:          fmt.Sprintf("fid_%s", columnName),
+			ID:          fmt.Sprintf("fid_%d", fieldIndex),
 			Name:        columnName,
 			Type:        s.mapMySQLTypeToAITable(dataType),
 			IsPrimary:   columnKey == "PRI",
@@ -279,6 +277,7 @@ func (s *MySQLService) getTableSchema(db *sql.DB, database, table string) ([]mod
 		}
 
 		fields = append(fields, field)
+		fieldIndex++
 	}
 
 	return fields, rows.Err()
@@ -294,12 +293,10 @@ func (s *MySQLService) getRecordCount(db *sql.DB, table string) (int, error) {
 
 // getTableRecords 获取表记录
 func (s *MySQLService) getTableRecords(db *sql.DB, table string, fields []models.Field, offset, limit int) ([]models.Record, error) {
-	// 构建字段列表
+	// 构建字段列表，按 fields 顺序获取列名
 	var columnNames []string
 	for _, field := range fields {
-		// 从字段ID中提取列名 (fid_xxx -> xxx)
-		columnName := strings.TrimPrefix(field.ID, "fid_")
-		columnNames = append(columnNames, fmt.Sprintf("`%s`", columnName))
+		columnNames = append(columnNames, fmt.Sprintf("`%s`", field.Name))
 	}
 
 	query := fmt.Sprintf("SELECT %s FROM `%s` LIMIT ? OFFSET ?",
@@ -313,24 +310,12 @@ func (s *MySQLService) getTableRecords(db *sql.DB, table string, fields []models
 	}
 	defer rows.Close()
 
-	// 获取列信息
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	// 构建字段类型映射
-	fieldTypeMap := make(map[string]string)
-	for _, f := range fields {
-		columnName := strings.TrimPrefix(f.ID, "fid_")
-		fieldTypeMap[columnName] = f.Type
-	}
-
 	var records []models.Record
+	rowIndex := 0
 	for rows.Next() {
 		// 创建扫描目标
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
+		values := make([]interface{}, len(fields))
+		valuePtrs := make([]interface{}, len(fields))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
@@ -339,26 +324,20 @@ func (s *MySQLService) getTableRecords(db *sql.DB, table string, fields []models
 			return nil, err
 		}
 
-		// 构建记录
+		// 构建记录，使用全局唯一的行号作为ID（offset + 当前行索引）
 		record := models.Record{
+			ID:     fmt.Sprintf("row_%d", offset+rowIndex+1),
 			Fields: make(map[string]interface{}),
 		}
 
-		for i, col := range columns {
-			fieldID := fmt.Sprintf("fid_%s", col)
-			value := values[i]
-			fieldType := fieldTypeMap[col]
-
-			// 根据字段类型正确转换数据
-			record.Fields[fieldID] = s.convertValue(value, fieldType)
-
-			// 第一个字段作为记录ID(通常是主键)
-			if i == 0 && value != nil {
-				record.ID = fmt.Sprintf("%v", value)
-			}
+		// 使用数字索引作为字段ID，与 fields 顺序一致
+		for i, field := range fields {
+			fieldID := fmt.Sprintf("fid_%d", i)
+			record.Fields[fieldID] = s.convertValue(values[i], field.Type)
 		}
 
 		records = append(records, record)
+		rowIndex++
 	}
 
 	return records, rows.Err()
@@ -490,6 +469,7 @@ func (s *MySQLService) getNumberProperty(mysqlType string) map[string]interface{
 }
 
 // applyFieldMappings 应用字段映射到字段列表
+// 只修改显示名称 Name，不修改字段ID（保持 fid_0, fid_1 格式）
 func (s *MySQLService) applyFieldMappings(fields []models.Field, mappings []models.FieldMapping) []models.Field {
 	if len(mappings) == 0 {
 		return fields
@@ -503,47 +483,14 @@ func (s *MySQLService) applyFieldMappings(fields []models.Field, mappings []mode
 		}
 	}
 
-	// 应用映射：同时修改 Name 和 ID（钉钉需要这样来显示别名）
+	// 应用映射：只修改 Name（显示名称），ID 保持数字索引格式
 	for i := range fields {
 		if alias, ok := aliasMap[fields[i].Name]; ok {
 			fields[i].Name = alias
-			fields[i].ID = fmt.Sprintf("fid_%s", alias)
 		}
 	}
 
 	return fields
-}
-
-// applyRecordFieldMappings 应用字段映射到记录数据
-func (s *MySQLService) applyRecordFieldMappings(records []models.Record, mappings []models.FieldMapping) []models.Record {
-	if len(mappings) == 0 {
-		return records
-	}
-
-	// 构建映射表: fid_原字段名 -> fid_别名
-	aliasMap := make(map[string]string)
-	for _, m := range mappings {
-		if m.AliasField != "" && m.AliasField != m.MysqlField {
-			oldKey := fmt.Sprintf("fid_%s", m.MysqlField)
-			newKey := fmt.Sprintf("fid_%s", m.AliasField)
-			aliasMap[oldKey] = newKey
-		}
-	}
-
-	// 应用映射到每条记录
-	for i := range records {
-		newFields := make(map[string]interface{})
-		for key, value := range records[i].Fields {
-			if newKey, ok := aliasMap[key]; ok {
-				newFields[newKey] = value
-			} else {
-				newFields[key] = value
-			}
-		}
-		records[i].Fields = newFields
-	}
-
-	return records
 }
 
 // getSQLSchema 通过执行SQL获取结果集的字段结构
@@ -579,7 +526,7 @@ func (s *MySQLService) getSQLSchema(db *sql.DB, customSQL string) ([]models.Fiel
 		}
 
 		field := models.Field{
-			ID:          fmt.Sprintf("fid_%s", col),
+			ID:          fmt.Sprintf("fid_%d", i),
 			Name:        col,
 			Type:        s.mapMySQLTypeToAITable(dbType),
 			IsPrimary:   i == 0,
@@ -653,22 +600,11 @@ func (s *MySQLService) getSQLRecords(db *sql.DB, customSQL string, fields []mode
 	}
 	defer rows.Close()
 
-	columns, err := rows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	// 构建字段类型映射
-	fieldTypeMap := make(map[string]string)
-	for _, f := range fields {
-		columnName := strings.TrimPrefix(f.ID, "fid_")
-		fieldTypeMap[columnName] = f.Type
-	}
-
 	var records []models.Record
+	rowIndex := 0
 	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
+		values := make([]interface{}, len(fields))
+		valuePtrs := make([]interface{}, len(fields))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
@@ -677,24 +613,20 @@ func (s *MySQLService) getSQLRecords(db *sql.DB, customSQL string, fields []mode
 			return nil, err
 		}
 
+		// 构建记录，使用全局唯一的行号作为ID（offset + 当前行索引）
 		record := models.Record{
+			ID:     fmt.Sprintf("row_%d", offset+rowIndex+1),
 			Fields: make(map[string]interface{}),
 		}
 
-		for i, col := range columns {
-			fieldID := fmt.Sprintf("fid_%s", col)
-			value := values[i]
-			fieldType := fieldTypeMap[col]
-
-			// 根据字段类型正确转换数据
-			record.Fields[fieldID] = s.convertValue(value, fieldType)
-
-			if i == 0 && value != nil {
-				record.ID = fmt.Sprintf("%v", value)
-			}
+		// 使用数字索引作为字段ID，与 fields 顺序一致
+		for i, field := range fields {
+			fieldID := fmt.Sprintf("fid_%d", i)
+			record.Fields[fieldID] = s.convertValue(values[i], field.Type)
 		}
 
 		records = append(records, record)
+		rowIndex++
 	}
 
 	return records, rows.Err()

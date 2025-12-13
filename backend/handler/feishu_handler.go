@@ -152,10 +152,7 @@ func (h *FeishuHandler) TableMeta(c *gin.Context) {
 		return
 	}
 
-	// 飞书要求 fieldID 只能包含英文数字下划线
-	// 因此不能让服务层应用别名到 ID，需要清空 fieldMappings
-	resolvedConfig.FieldMappings = nil
-	configWithoutMappings, _ := json.Marshal(resolvedConfig)
+	configJSON, _ := json.Marshal(resolvedConfig)
 
 	// 构建日志详情
 	var executedSQL string
@@ -169,7 +166,7 @@ func (h *FeishuHandler) TableMeta(c *gin.Context) {
 	// 构建钉钉格式的请求，复用服务层
 	dingtalkReq := &models.SheetMetaRequest{
 		RequestID: feishuContext.Bitable.LogID,
-		Params:    string(configWithoutMappings),
+		Params:    string(configJSON),
 		Context: models.Context{
 			UnionID: feishuContext.ScriptArgs.BaseOpenID,
 			CorpID:  feishuContext.TenantKey,
@@ -256,10 +253,7 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 		return
 	}
 
-	// 飞书要求 fieldID 只能包含英文数字下划线
-	// 因此不能让服务层应用别名到字段key，需要清空 fieldMappings
-	resolvedConfig.FieldMappings = nil
-	configWithoutMappings, _ := json.Marshal(resolvedConfig)
+	configJSON, _ := json.Marshal(resolvedConfig)
 
 	// 转换分页参数：飞书pageToken -> 钉钉nextToken
 	nextToken := ""
@@ -297,7 +291,7 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 		RequestID:  feishuContext.Bitable.LogID,
 		MaxResults: maxResults,
 		NextToken:  nextToken,
-		Params:     string(configWithoutMappings),
+		Params:     string(configJSON),
 		Context: models.Context{
 			UnionID: feishuContext.ScriptArgs.BaseOpenID,
 			CorpID:  feishuContext.TenantKey,
@@ -317,22 +311,8 @@ func (h *FeishuHandler) Records(c *gin.Context) {
 		return
 	}
 
-	// 获取表结构用于字段映射
-	metaReq := &models.SheetMetaRequest{
-		Params: string(configWithoutMappings),
-	}
-	metaData, err := h.mysqlService.GetSheetMeta(metaReq)
-	if err != nil {
-		h.log.LogWithRequest(logger.LevelError, "获取记录", "获取表结构失败: "+err.Error(), detail, ip, c.GetHeader("User-Agent"), duration)
-		c.JSON(http.StatusOK, models.FeishuResponse{
-			Code: models.FeishuCodeSystemError,
-			Msg:  models.NewFeishuErrorMsg("获取表结构失败: "+err.Error(), "Failed to get table meta: "+err.Error()),
-		})
-		return
-	}
-
-	// 转换为飞书格式，传入字段列表以保证顺序一致
-	feishuData := models.ConvertToFeishuRecords(data, metaData.Fields)
+	// 转换为飞书格式（字段ID已统一为 fid_0, fid_1 格式，无需额外映射）
+	feishuData := models.ConvertToFeishuRecords(data, nil)
 
 	h.log.LogWithRequest(logger.LevelInfo, "获取记录",
 		fmt.Sprintf("成功获取 %d 条记录, 还有更多: %v", len(feishuData.Records), feishuData.HasMore),

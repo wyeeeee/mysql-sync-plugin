@@ -221,12 +221,6 @@ function Config({ onLogout }: ConfigProps) {
                   {selectedTable.queryMode === 'table' ? '数据表' : '自定义SQL'}
                 </span>
               </div>
-              {selectedTable.customSql && (
-                <div className="table-info-item">
-                  <span className="table-info-label">SQL语句</span>
-                  <div className="table-info-sql">{selectedTable.customSql}</div>
-                </div>
-              )}
             </div>
           )}
 
