@@ -463,9 +463,13 @@ func (r *SQLiteRepository) BatchCreateFieldMappings(tableID int64, mappings []*m
 
 	// 批量插入新映射
 	for _, mapping := range mappings {
+		enabled := 1
+		if !mapping.Enabled {
+			enabled = 0
+		}
 		_, err := r.db.Exec(
-			"INSERT INTO field_mappings (datasource_table_id, field_name, field_alias, created_at) VALUES (?, ?, ?, ?)",
-			tableID, mapping.FieldName, mapping.FieldAlias, time.Now(),
+			"INSERT INTO field_mappings (datasource_table_id, field_name, field_alias, enabled, created_at) VALUES (?, ?, ?, ?, ?)",
+			tableID, mapping.FieldName, mapping.FieldAlias, enabled, time.Now(),
 		)
 		if err != nil {
 			return fmt.Errorf("创建字段映射失败: %w", err)
@@ -481,7 +485,7 @@ func (r *SQLiteRepository) ListFieldMappings(tableID int64) ([]*models.Datasourc
 	defer r.mu.RUnlock()
 
 	rows, err := r.db.Query(
-		"SELECT id, datasource_table_id, field_name, field_alias, created_at FROM field_mappings WHERE datasource_table_id = ?",
+		"SELECT id, datasource_table_id, field_name, field_alias, enabled, created_at FROM field_mappings WHERE datasource_table_id = ?",
 		tableID,
 	)
 	if err != nil {
@@ -492,9 +496,11 @@ func (r *SQLiteRepository) ListFieldMappings(tableID int64) ([]*models.Datasourc
 	var mappings []*models.DatasourceFieldMapping
 	for rows.Next() {
 		var mapping models.DatasourceFieldMapping
-		if err := rows.Scan(&mapping.ID, &mapping.DatasourceTableID, &mapping.FieldName, &mapping.FieldAlias, &mapping.CreatedAt); err != nil {
+		var enabled int
+		if err := rows.Scan(&mapping.ID, &mapping.DatasourceTableID, &mapping.FieldName, &mapping.FieldAlias, &enabled, &mapping.CreatedAt); err != nil {
 			return nil, fmt.Errorf("扫描字段映射数据失败: %w", err)
 		}
+		mapping.Enabled = enabled == 1
 		mappings = append(mappings, &mapping)
 	}
 

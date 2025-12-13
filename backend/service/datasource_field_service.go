@@ -34,6 +34,7 @@ func (s *DatasourceService) UpdateFieldMappings(tableID int64, fieldMappings []m
 			DatasourceTableID: tableID,
 			FieldName:         fm.MysqlField,
 			FieldAlias:        fm.AliasField,
+			Enabled:           fm.Enabled,
 			CreatedAt:         time.Now(),
 		}
 	}

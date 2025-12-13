@@ -6,70 +6,78 @@
     @ok="handleOk"
     @cancel="visible = false"
   >
-    <div style="margin-bottom: 16px">
-      <a-space>
-        <a-button type="primary" size="small" @click="loadFieldsFromDatabase">
-          <template #icon><PlusOutlined /></template>
-          从数据库加载字段
-        </a-button>
-        <a-button size="small" @click="applyAllComments" v-if="hasAnyComment">
-          一键应用备注
-        </a-button>
-        <a-button size="small" @click="addFieldMapping">
-          手动添加映射
-        </a-button>
-      </a-space>
-    </div>
+    <a-spin :spinning="loading">
+      <div style="margin-bottom: 16px">
+        <a-space>
+          <a-button size="small" @click="toggleAll(true)">
+            全部启用
+          </a-button>
+          <a-button size="small" @click="toggleAll(false)">
+            全部禁用
+          </a-button>
+          <a-button size="small" @click="applyAllComments" v-if="hasAnyComment">
+            一键应用备注
+          </a-button>
+          <a-button type="primary" size="small" @click="refreshFieldsFromDatabase">
+            <template #icon><ReloadOutlined /></template>
+            刷新字段
+          </a-button>
+        </a-space>
+      </div>
 
-    <a-table
-      :columns="columns"
-      :data-source="fieldMappings"
-      :pagination="false"
-      row-key="index"
-    >
-      <template #bodyCell="{ column, record, index }">
-        <template v-if="column.key === 'fieldName'">
-          <a-input
-            v-model:value="record.mysqlField"
-            placeholder="MySQL字段名"
-            :disabled="record.fromDatabase"
-          />
-        </template>
-        <template v-else-if="column.key === 'comment'">
-          <span style="color: #666">{{ record.comment || '-' }}</span>
-        </template>
-        <template v-else-if="column.key === 'fieldAlias'">
-          <a-input v-model:value="record.aliasField" placeholder="显示别名" />
-        </template>
-        <template v-else-if="column.key === 'action'">
-          <a-space>
+      <a-table
+        :columns="columns"
+        :data-source="fieldMappings"
+        :pagination="false"
+        row-key="index"
+        size="small"
+      >
+        <template #bodyCell="{ column, record, index }">
+          <template v-if="column.key === 'enabled'">
+            <a-switch
+              v-model:checked="record.enabled"
+              checked-children="启用"
+              un-checked-children="禁用"
+            />
+          </template>
+          <template v-else-if="column.key === 'fieldName'">
+            <span>{{ record.mysqlField }}</span>
+          </template>
+          <template v-else-if="column.key === 'comment'">
+            <span style="color: #666">{{ record.comment || '-' }}</span>
+          </template>
+          <template v-else-if="column.key === 'fieldAlias'">
+            <a-input
+              v-model:value="record.aliasField"
+              placeholder="显示别名"
+              :disabled="!record.enabled"
+            />
+          </template>
+          <template v-else-if="column.key === 'action'">
             <a-button
               v-if="record.comment"
               type="link"
               size="small"
+              :disabled="!record.enabled"
               @click="applyComment(index)"
             >
               应用备注
             </a-button>
-            <a-button
-              type="link"
-              size="small"
-              danger
-              @click="removeFieldMapping(index)"
-            >
-              删除
-            </a-button>
-          </a-space>
+          </template>
         </template>
-      </template>
-    </a-table>
+      </a-table>
+
+      <div v-if="fieldMappings.length === 0" style="text-align: center; padding: 20px; color: #999">
+        暂无字段数据，请检查数据源配置
+      </div>
+    </a-spin>
   </a-modal>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined } from '@ant-design/icons-vue'
 import { datasourceApi } from '../../api'
 
 const props = defineProps<{
@@ -84,20 +92,23 @@ const emit = defineEmits<{
 }>()
 
 const visible = ref(props.open)
+const loading = ref(false)
 const fieldMappings = ref<any[]>([])
-const hasAnyComment = ref(false)
+
+const hasAnyComment = computed(() => fieldMappings.value.some((f: any) => f.comment))
 
 const columns = [
+  { title: '启用', key: 'enabled', width: '80px' },
   { title: 'MySQL字段名', key: 'fieldName', width: '25%' },
   { title: '数据库备注', key: 'comment', width: '25%' },
   { title: '显示别名', key: 'fieldAlias', width: '30%' },
-  { title: '操作', key: 'action', width: '20%' }
+  { title: '操作', key: 'action', width: '100px' }
 ]
 
 watch(() => props.open, async (val) => {
   visible.value = val
   if (val && props.table) {
-    await loadFieldMappings()
+    await loadFieldMappingsWithDbFields()
   }
 })
 
@@ -105,35 +116,73 @@ watch(visible, (val) => {
   emit('update:open', val)
 })
 
-const loadFieldMappings = async () => {
-  if (!props.table) return
+// 加载字段映射，同时获取数据库字段信息
+const loadFieldMappingsWithDbFields = async () => {
+  if (!props.table || !props.datasource) return
 
+  loading.value = true
   try {
-    const res = await datasourceApi.getFieldMappings(props.table.id)
-    if (res.code === 0) {
-      fieldMappings.value = (res.data || []).map((item: any, index: number) => ({
+    // 并行获取已保存的映射和数据库字段
+    const [mappingsRes, dbFieldsRes] = await Promise.all([
+      datasourceApi.getFieldMappings(props.table.id),
+      loadDbFields()
+    ])
+
+    const savedMappings = mappingsRes.code === 0 ? (mappingsRes.data || []) : []
+    const dbFields = dbFieldsRes || []
+
+    // 创建已保存映射的查找表
+    const savedMap = new Map<string, any>()
+    savedMappings.forEach((item: any) => {
+      savedMap.set(item.fieldName, item)
+    })
+
+    // 创建数据库字段的查找表
+    const dbFieldMap = new Map<string, any>()
+    dbFields.forEach((field: any) => {
+      dbFieldMap.set(field.name, field)
+    })
+
+    // 合并字段列表：以数据库字段为基准
+    if (dbFields.length > 0) {
+      fieldMappings.value = dbFields.map((field: any, index: number) => {
+        const saved = savedMap.get(field.name)
+        return {
+          index,
+          mysqlField: field.name,
+          aliasField: saved?.fieldAlias || field.name,
+          comment: field.comment || '',
+          enabled: saved ? saved.enabled : true
+        }
+      })
+    } else if (savedMappings.length > 0) {
+      // 如果无法获取数据库字段，使用已保存的映射
+      fieldMappings.value = savedMappings.map((item: any, index: number) => ({
         index,
         mysqlField: item.fieldName,
         aliasField: item.fieldAlias,
         comment: '',
-        fromDatabase: false
+        enabled: item.enabled
       }))
-      hasAnyComment.value = false
+    } else {
+      fieldMappings.value = []
     }
   } catch (error) {
     message.error('加载字段映射失败')
+  } finally {
+    loading.value = false
   }
 }
 
-const loadFieldsFromDatabase = async () => {
-  if (!props.table || !props.datasource) return
+// 从数据库加载字段列表
+const loadDbFields = async (): Promise<any[]> => {
+  if (!props.table || !props.datasource) return []
 
   try {
     let res
     if (props.table.queryMode === 'sql') {
       if (!props.table.customSql) {
-        message.error('自定义SQL为空,无法加载字段')
-        return
+        return []
       }
       res = await datasourceApi.getFieldListFromSQL(
         props.datasource.id,
@@ -149,24 +198,29 @@ const loadFieldsFromDatabase = async () => {
     }
 
     if (res.code === 0) {
-      const fields = res.data || []
-      fieldMappings.value = fields.map((field: any, index: number) => ({
-        index,
-        mysqlField: field.name,
-        aliasField: field.name,
-        comment: field.comment || '',
-        fromDatabase: true
-      }))
-      hasAnyComment.value = fields.some((f: any) => f.comment)
-      message.success(`成功加载 ${fields.length} 个字段`)
-    } else {
-      message.error(res.msg || '加载字段失败')
+      return res.data || []
     }
+    return []
   } catch (error) {
-    message.error('加载字段失败')
+    return []
   }
 }
 
+// 刷新字段（重新从数据库加载）
+const refreshFieldsFromDatabase = async () => {
+  await loadFieldMappingsWithDbFields()
+  message.success('字段已刷新')
+}
+
+// 全部启用/禁用
+const toggleAll = (enabled: boolean) => {
+  fieldMappings.value.forEach(field => {
+    field.enabled = enabled
+  })
+  message.success(enabled ? '已全部启用' : '已全部禁用')
+}
+
+// 应用单个备注
 const applyComment = (index: number) => {
   const field = fieldMappings.value[index]
   if (field.comment) {
@@ -174,41 +228,29 @@ const applyComment = (index: number) => {
   }
 }
 
+// 一键应用所有备注
 const applyAllComments = () => {
   fieldMappings.value.forEach(field => {
-    if (field.comment) {
+    if (field.comment && field.enabled) {
       field.aliasField = field.comment
     }
   })
   message.success('已应用所有备注')
 }
 
-const addFieldMapping = () => {
-  fieldMappings.value.push({
-    index: fieldMappings.value.length,
-    mysqlField: '',
-    aliasField: '',
-    comment: '',
-    fromDatabase: false
-  })
-}
-
-const removeFieldMapping = (index: number) => {
-  fieldMappings.value.splice(index, 1)
-  fieldMappings.value.forEach((item, idx) => {
-    item.index = idx
-  })
-}
-
+// 保存
 const handleOk = async () => {
-  const validMappings = fieldMappings.value.filter(
-    (item) => item.mysqlField && item.aliasField
-  )
+  // 转换为后端需要的格式，包含所有字段
+  const allMappings = fieldMappings.value.map(item => ({
+    mysqlField: item.mysqlField,
+    aliasField: item.aliasField || item.mysqlField,
+    enabled: item.enabled
+  }))
 
   try {
     const res = await datasourceApi.updateFieldMappings(
       props.table.id,
-      validMappings
+      allMappings
     )
     if (res.code === 0) {
       message.success('更新成功')

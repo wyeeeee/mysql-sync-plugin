@@ -159,7 +159,7 @@ export const datasourceApi = {
     api.get(`/datasource-tables/${tableId}/fields`),
   updateFieldMappings: (
     tableId: number,
-    fieldMappings: Array<{ mysqlField: string; aliasField: string }>
+    fieldMappings: Array<{ mysqlField: string; aliasField: string; enabled: boolean }>
   ) => api.post(`/datasource-tables/${tableId}/fields`, { fieldMappings }),
 
   // 数据源辅助接口

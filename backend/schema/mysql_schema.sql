@@ -73,11 +73,15 @@ CREATE TABLE IF NOT EXISTS field_mappings (
     datasource_table_id BIGINT NOT NULL COMMENT '数据源表ID',
     field_name VARCHAR(255) NOT NULL COMMENT '原始字段名',
     field_alias VARCHAR(255) NOT NULL COMMENT '字段别名',
+    enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用: 1启用 0禁用',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (datasource_table_id) REFERENCES datasource_tables(id) ON DELETE CASCADE,
     UNIQUE KEY uk_table_field (datasource_table_id, field_name),
     INDEX idx_datasource_table_id (datasource_table_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='字段映射表';
+
+-- 数据迁移: 为已有记录添加 enabled 字段默认值
+-- ALTER TABLE field_mappings ADD COLUMN enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用: 1启用 0禁用' AFTER field_alias;
 
 -- 用户数据源权限表
 CREATE TABLE IF NOT EXISTS user_datasource_permissions (

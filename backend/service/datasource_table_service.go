@@ -56,6 +56,7 @@ func (s *DatasourceService) CreateDatasourceTable(datasourceID int64, req *model
 				DatasourceTableID: table.ID,
 				FieldName:         fm.MysqlField,
 				FieldAlias:        fm.AliasField,
+				Enabled:           fm.Enabled,
 				CreatedAt:         time.Now(),
 			}
 		}
@@ -90,11 +91,12 @@ func (s *DatasourceService) autoLoadFieldMappings(table *models.DatasourceTable,
 	if len(fields) > 0 {
 		mappings := make([]*models.DatasourceFieldMapping, len(fields))
 		for i, field := range fields {
-			// 使用字段名作为别名
+			// 使用字段名作为别名，默认启用
 			mappings[i] = &models.DatasourceFieldMapping{
 				DatasourceTableID: table.ID,
 				FieldName:         field.Name,
 				FieldAlias:        field.Name,
+				Enabled:           true,
 				CreatedAt:         time.Now(),
 			}
 		}
@@ -168,6 +170,7 @@ func (s *DatasourceService) UpdateDatasourceTable(id int64, req *models.UpdateDa
 				DatasourceTableID: table.ID,
 				FieldName:         fm.MysqlField,
 				FieldAlias:        fm.AliasField,
+				Enabled:           fm.Enabled,
 				CreatedAt:         time.Now(),
 			}
 		}

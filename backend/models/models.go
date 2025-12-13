@@ -28,6 +28,7 @@ type Context struct {
 type FieldMapping struct {
 	MysqlField string `json:"mysqlField"` // MySQL原始字段名
 	AliasField string `json:"aliasField"` // AI表格显示的别名
+	Enabled    bool   `json:"enabled"`    // 是否启用
 }
 
 // MySQLConfig MySQL连接配置(从params中解析)

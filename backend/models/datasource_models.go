@@ -31,11 +31,12 @@ type DatasourceTable struct {
 
 // DatasourceFieldMapping 字段映射模型
 type DatasourceFieldMapping struct {
-	ID                 int64     `json:"id"`
-	DatasourceTableID  int64     `json:"datasourceTableId"`
-	FieldName          string    `json:"fieldName"`
-	FieldAlias         string    `json:"fieldAlias"`
-	CreatedAt          time.Time `json:"createdAt"`
+	ID                int64     `json:"id"`
+	DatasourceTableID int64     `json:"datasourceTableId"`
+	FieldName         string    `json:"fieldName"`
+	FieldAlias        string    `json:"fieldAlias"`
+	Enabled           bool      `json:"enabled"`
+	CreatedAt         time.Time `json:"createdAt"`
 }
 
 // CreateDatasourceRequest 创建数据源请求
